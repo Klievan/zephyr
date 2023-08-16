@@ -20,7 +20,9 @@ LOG_MODULE_REGISTER(LOG_DOMAIN);
 
 #include "flash_stm32.h"
 
-#if !defined (STM32L4R5xx) && !defined (STM32L4R7xx) && !defined (STM32L4R9xx) && !defined (STM32L4S5xx) && !defined (STM32L4S7xx) && !defined (STM32L4S9xx)
+#if !defined(STM32L4R5xx) && !defined(STM32L4R7xx) && !defined(STM32L4R9xx) && \
+	!defined(STM32L4S5xx) && !defined(STM32L4S7xx) && !defined(STM32L4S9xx) && \
+	!defined(STM32L4Q5xx)
 #define STM32L4X_PAGE_SHIFT	11
 #else
 #define STM32L4X_PAGE_SHIFT	12
@@ -29,16 +31,6 @@ LOG_MODULE_REGISTER(LOG_DOMAIN);
 #if defined(FLASH_OPTR_DUALBANK) || defined(FLASH_STM32_DBANK)
 #define CONTROL_DCACHE
 #endif
-
-/* offset and len must be aligned on 8 for write
- * , positive and not beyond end of flash */
-bool flash_stm32_valid_range(const struct device *dev, off_t offset,
-			     uint32_t len,
-			     bool write)
-{
-	return (!write || (offset % 8 == 0 && len % 8 == 0U)) &&
-		flash_stm32_range_exists(dev, offset, len);
-}
 
 static inline void flush_cache(FLASH_TypeDef *regs)
 {
@@ -95,9 +87,14 @@ static int write_dword(const struct device *dev, off_t offset, uint64_t val)
 		return rc;
 	}
 
-	/* Check if this double word is erased */
-	if (flash[0] != 0xFFFFFFFFUL ||
-	    flash[1] != 0xFFFFFFFFUL) {
+	/* Check if this double word is erased and value isn't 0.
+	 *
+	 * It is allowed to write only zeros over an already written dword
+	 * See 3.3.7 in reference manual.
+	 */
+	if ((flash[0] != 0xFFFFFFFFUL ||
+	     flash[1] != 0xFFFFFFFFUL) && val != 0UL) {
+		LOG_ERR("Word at offs %ld not erased", (long)offset);
 		return -EIO;
 	}
 

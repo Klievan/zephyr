@@ -77,6 +77,11 @@
 #error "Unsupported configuration: ARC_FIRQ_STACK and (RGF_NUM_BANKS < 2)"
 #endif
 
+/* In case of ARC 2+2 secure mode enabled the firq are not supported by HW */
+#if defined(CONFIG_ARC_FIRQ) && defined(CONFIG_ARC_HAS_SECURE)
+#error "Unsupported configuration: ARC_FIRQ and ARC_HAS_SECURE"
+#endif
+
 #if defined(CONFIG_SMP) && !defined(CONFIG_MULTITHREADING)
 #error "Non-multithreading mode isn't supported on SMP targets"
 #endif
@@ -110,7 +115,8 @@ BUILD_ASSERT(CONFIG_ARC_EXCEPTION_STACK_SIZE % ARCH_STACK_PTR_ALIGN == 0,
 #ifdef CONFIG_ARC_CORE_MPU
 #if CONFIG_ARC_MPU_VER == 2
 #define Z_ARC_MPU_ALIGN	2048
-#elif (CONFIG_ARC_MPU_VER == 3) || (CONFIG_ARC_MPU_VER == 4) || (CONFIG_ARC_MPU_VER == 6)
+#elif (CONFIG_ARC_MPU_VER == 3) || (CONFIG_ARC_MPU_VER == 4) || \
+	(CONFIG_ARC_MPU_VER == 6) || (CONFIG_ARC_MPU_VER == 8)
 #define Z_ARC_MPU_ALIGN	32
 #else
 #error "Unsupported MPU version"
@@ -306,7 +312,7 @@ BUILD_ASSERT(CONFIG_PRIVILEGED_STACK_SIZE % Z_ARC_MPU_ALIGN == 0,
 	BUILD_ASSERT(IS_BUILTIN_MWDT(size) ? IS_BUILTIN_MWDT(start) ?				\
 		!((uintptr_t)(start) & ((size) - 1)) : 1 : 1,					\
 		"partition start address must align with size.")
-#elif CONFIG_ARC_MPU_VER == 4
+#elif CONFIG_ARC_MPU_VER == 4 || CONFIG_ARC_MPU_VER == 8
 #define _ARCH_MEM_PARTITION_ALIGN_CHECK(start, size)						\
 	BUILD_ASSERT(IS_BUILTIN_MWDT(size) ? (size) % Z_ARC_MPU_ALIGN == 0 : 1,			\
 		"partition size must align with " STRINGIFY(Z_ARC_MPU_ALIGN));			\
@@ -324,7 +330,7 @@ BUILD_ASSERT(CONFIG_PRIVILEGED_STACK_SIZE % Z_ARC_MPU_ALIGN == 0,
 		"partition size must be >= mpu address alignment.");				\
 	BUILD_ASSERT(!((uintptr_t)(start) & ((size) - 1)),					\
 		"partition start address must align with size.")
-#elif CONFIG_ARC_MPU_VER == 4
+#elif CONFIG_ARC_MPU_VER == 4 || CONFIG_ARC_MPU_VER == 8
 #define _ARCH_MEM_PARTITION_ALIGN_CHECK(start, size)						\
 	BUILD_ASSERT((size) % Z_ARC_MPU_ALIGN == 0,						\
 		"partition size must align with " STRINGIFY(Z_ARC_MPU_ALIGN));			\
@@ -343,6 +349,10 @@ static ALWAYS_INLINE void arch_nop(void)
 {
 	__builtin_arc_nop();
 }
+
+#ifndef CONFIG_XIP
+extern char __arc_rw_sram_size[];
+#endif /* CONFIG_XIP */
 
 #endif /* _ASMLANGUAGE */
 

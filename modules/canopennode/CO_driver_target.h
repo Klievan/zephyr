@@ -39,12 +39,10 @@ extern "C" {
 #define CO_USE_LEDS 1
 #endif
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#ifdef CONFIG_LITTLE_ENDIAN
 #define CO_LITTLE_ENDIAN
-#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#define CO_BIG_ENDIAN
 #else
-#error "Unsupported endianness"
+#define CO_BIG_ENDIAN
 #endif
 
 typedef bool          bool_t;
@@ -68,6 +66,7 @@ typedef struct canopen_rx {
 	void *object;
 	CO_CANrxBufferCallback_t pFunct;
 	uint16_t ident;
+	uint16_t mask;
 } CO_CANrx_t;
 
 typedef struct canopen_tx {

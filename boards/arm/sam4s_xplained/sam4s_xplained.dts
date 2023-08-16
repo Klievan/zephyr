@@ -7,6 +7,7 @@
 
 #include <atmel/sam4s16c.dtsi>
 #include "sam4s_xplained-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "Atmel SAM4S Xplained Board with an Atmel SAM4S16C SoC";
@@ -15,6 +16,7 @@
 	aliases {
 		i2c-0 = &twi0;
 		i2c-1 = &twi1;
+		pwm-0 = &pwm0;
 		led0 = &yellow_led_1;
 		led1 = &yellow_led_2;
 		sw0 = &user_button;
@@ -59,6 +61,7 @@
 		user_button: button_1 {
 			label = "User Button";
 			gpios = <&pioa 5 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
 
@@ -166,6 +169,25 @@
 
 	pinctrl-0 = <&uart1_default>;
 	pinctrl-names = "default";
+};
+
+&pwm0 {
+	status = "okay";
+
+	pinctrl-0 = <&pwm0_default>;
+	pinctrl-names = "default";
+};
+
+&adc0 {
+	status = "okay";
+
+	pinctrl-0 = <&adc0_default>;
+	pinctrl-names = "default";
+
+	prescaler = <9>;
+	startup-time = <64>;
+	settling-time = <3>;
+	tracking-time = <2>;
 };
 
 &wdt {

@@ -24,6 +24,8 @@
 #include "util/mfifo.h"
 #include "util/dbuf.h"
 
+#include "pdu_df.h"
+#include "pdu_vendor.h"
 #include "pdu.h"
 
 #include "lll.h"
@@ -37,9 +39,8 @@
 #include "lll_tim_internal.h"
 #include "lll_prof_internal.h"
 
-#define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
-#define LOG_MODULE_NAME bt_ctlr_lll_conn
-#include "common/log.h"
+#include <zephyr/bluetooth/hci_types.h>
+
 #include "hal/debug.h"
 
 static int init_reset(void);
@@ -149,6 +150,7 @@ void lll_conn_prepare_reset(void)
 
 void lll_conn_abort_cb(struct lll_prepare_param *prepare_param, void *param)
 {
+	struct event_done_extra *e;
 	struct lll_conn *lll;
 	int err;
 
@@ -172,6 +174,17 @@ void lll_conn_abort_cb(struct lll_prepare_param *prepare_param, void *param)
 	/* Accumulate the latency as event is aborted while being in pipeline */
 	lll = prepare_param->param;
 	lll->latency_prepare += (prepare_param->lazy + 1);
+
+	/* Extra done event, to check supervision timeout */
+	e = ull_event_done_extra_get();
+	LL_ASSERT(e);
+
+	e->type = EVENT_DONE_EXTRA_TYPE_CONN;
+	e->trx_cnt = 0U;
+	e->crc_valid = 0U;
+#if defined(CONFIG_BT_CTLR_LE_ENC)
+	e->mic_state = LLL_CONN_MIC_NONE;
+#endif /* CONFIG_BT_CTLR_LE_ENC */
 
 	lll_done(param);
 }
@@ -284,9 +297,9 @@ void lll_conn_isr_rx(void *param)
 			pdu_scratch = (struct pdu_data *)radio_pkt_scratch_get();
 
 			if (pdu_scratch->cp) {
-				(void)memcpy((void *)&pdu_data_rx->cte_info,
-					     (void *)&pdu_scratch->cte_info,
-					     sizeof(pdu_data_rx->cte_info));
+				(void)memcpy((void *)&pdu_data_rx->octet3.cte_info,
+					     (void *)&pdu_scratch->octet3.cte_info,
+					     sizeof(pdu_data_rx->octet3.cte_info));
 			}
 		}
 #endif /* CONFIG_BT_CTLR_DF_CONN_CTE_RX && defined(CONFIG_BT_CTLR_LE_ENC) */
@@ -297,10 +310,12 @@ void lll_conn_isr_rx(void *param)
 
 #if defined(CONFIG_BT_CTLR_DF_CONN_CTE_TX)
 	if (pdu_data_tx->cp) {
-		cte_len = CTE_LEN_US(pdu_data_tx->cte_info.time);
+		cte_len = CTE_LEN_US(pdu_data_tx->octet3.cte_info.time);
 
-		lll_df_cte_tx_configure(pdu_data_tx->cte_info.type, pdu_data_tx->cte_info.time,
-					lll->df_tx_cfg.ant_sw_len, lll->df_tx_cfg.ant_ids);
+		lll_df_cte_tx_configure(pdu_data_tx->octet3.cte_info.type,
+					pdu_data_tx->octet3.cte_info.time,
+					lll->df_tx_cfg.ant_sw_len,
+					lll->df_tx_cfg.ant_ids);
 	} else
 #endif /* CONFIG_BT_CTLR_DF_CONN_CTE_TX */
 	{
@@ -395,13 +410,6 @@ lll_conn_isr_rx_exit:
 
 	is_ull_rx = 0U;
 
-#if defined(CONFIG_BT_CTLR_RX_ENQUEUE_HOLD)
-	if (((lll->rx_hold_req - lll->rx_hold_ack) & RX_HOLD_MASK) ==
-	    RX_HOLD_REQ) {
-		lll->rx_hold_ack--;
-	}
-#endif /* CONFIG_BT_CTLR_RX_ENQUEUE_HOLD */
-
 	if (tx_release) {
 		LL_ASSERT(lll->handle != 0xFFFF);
 
@@ -411,7 +419,7 @@ lll_conn_isr_rx_exit:
 	}
 
 	if (is_rx_enqueue) {
-#if defined(CONFIG_SOC_COMPATIBLE_NRF52832) && \
+#if defined(CONFIG_SOC_NRF52832) && \
 	defined(CONFIG_BT_CTLR_LE_ENC) && \
 	defined(HAL_RADIO_PDU_LEN_MAX) && \
 	(!defined(CONFIG_BT_CTLR_DATA_LENGTH_MAX) || \
@@ -517,7 +525,7 @@ void lll_conn_isr_tx(void *param)
 		df_rx_params = dbuf_curr_get(&df_rx_cfg->hdr);
 
 		if (df_rx_params->is_enabled) {
-			lll_df_conf_cte_rx_enable(df_rx_params->slot_durations,
+			(void)lll_df_conf_cte_rx_enable(df_rx_params->slot_durations,
 						  df_rx_params->ant_sw_len, df_rx_params->ant_ids,
 						  df_rx_cfg->chan, CTE_INFO_IN_S1_BYTE,
 						  lll->phy_rx);
@@ -565,7 +573,7 @@ void lll_conn_isr_tx(void *param)
 	LL_ASSERT(pdu_tx);
 
 	if (pdu_tx->cp) {
-		cte_len = CTE_LEN_US(pdu_tx->cte_info.time);
+		cte_len = CTE_LEN_US(pdu_tx->octet3.cte_info.time);
 	} else {
 		cte_len = 0U;
 	}
@@ -636,14 +644,15 @@ void lll_conn_rx_pkt_set(struct lll_conn *lll)
 	LL_ASSERT(node_rx);
 
 #if defined(CONFIG_BT_CTLR_DATA_LENGTH)
-#ifdef CONFIG_BT_LL_SW_LLCP_LEGACY
-	max_rx_octets = lll->max_rx_octets;
-#else
 	max_rx_octets = lll->dle.eff.max_rx_octets;
-#endif
 #else /* !CONFIG_BT_CTLR_DATA_LENGTH */
 	max_rx_octets = PDU_DC_PAYLOAD_SIZE_MIN;
 #endif /* !CONFIG_BT_CTLR_DATA_LENGTH */
+
+	if ((PDU_DC_CTRL_RX_SIZE_MAX > PDU_DC_PAYLOAD_SIZE_MIN) &&
+	    (max_rx_octets < PDU_DC_CTRL_RX_SIZE_MAX)) {
+		max_rx_octets = PDU_DC_CTRL_RX_SIZE_MAX;
+	}
 
 #if defined(CONFIG_BT_CTLR_PHY)
 	phy = lll->phy_rx;
@@ -660,7 +669,7 @@ void lll_conn_rx_pkt_set(struct lll_conn *lll)
 				    RADIO_PKT_CONF_FLAGS(RADIO_PKT_CONF_PDU_TYPE_DC, phy,
 							 RADIO_PKT_CONF_CTE_DISABLED));
 
-#if defined(CONFIG_SOC_COMPATIBLE_NRF52832) && \
+#if defined(CONFIG_SOC_NRF52832) && \
 	defined(HAL_RADIO_PDU_LEN_MAX) && \
 	(!defined(CONFIG_BT_CTLR_DATA_LENGTH_MAX) || \
 	 (CONFIG_BT_CTLR_DATA_LENGTH_MAX < (HAL_RADIO_PDU_LEN_MAX - 4)))
@@ -688,14 +697,15 @@ void lll_conn_tx_pkt_set(struct lll_conn *lll, struct pdu_data *pdu_data_tx)
 	uint16_t max_tx_octets;
 
 #if defined(CONFIG_BT_CTLR_DATA_LENGTH)
-#ifdef CONFIG_BT_LL_SW_LLCP_LEGACY
-	max_tx_octets = lll->max_tx_octets;
-#else
 	max_tx_octets = lll->dle.eff.max_tx_octets;
-#endif
 #else /* !CONFIG_BT_CTLR_DATA_LENGTH */
 	max_tx_octets = PDU_DC_PAYLOAD_SIZE_MIN;
 #endif /* !CONFIG_BT_CTLR_DATA_LENGTH */
+
+	if ((PDU_DC_CTRL_TX_SIZE_MAX > PDU_DC_PAYLOAD_SIZE_MIN) &&
+	    (max_tx_octets < PDU_DC_CTRL_TX_SIZE_MAX)) {
+		max_tx_octets = PDU_DC_CTRL_TX_SIZE_MAX;
+	}
 
 #if defined(CONFIG_BT_CTLR_PHY)
 	phy = lll->phy_tx;
@@ -768,7 +778,7 @@ void lll_conn_pdu_tx_prep(struct lll_conn *lll, struct pdu_data **pdu_data_tx)
 			 * with CONTINUE PDUs if fragmentation is performed.
 			 */
 			p->cp = 0U;
-			p->resv = 0U;
+			p->octet3.resv[0] = 0U;
 #endif /* CONFIG_BT_CTLR_DF_CONN_CTE_TX || CONFIG_BT_CTLR_DF_CONN_CTE_RX */
 		}
 
@@ -776,7 +786,9 @@ void lll_conn_pdu_tx_prep(struct lll_conn *lll, struct pdu_data **pdu_data_tx)
 
 		max_tx_octets = ull_conn_lll_max_tx_octets_get(lll);
 
-		if (p->len > max_tx_octets) {
+		if (((PDU_DC_CTRL_TX_SIZE_MAX <= PDU_DC_PAYLOAD_SIZE_MIN) ||
+		     (p->ll_id != PDU_DATA_LLID_CTRL)) &&
+		    (p->len > max_tx_octets)) {
 			p->len = max_tx_octets;
 			p->md = 1U;
 		} else if ((link->next != lll->memq_tx.tail) ||
@@ -790,7 +802,10 @@ void lll_conn_pdu_tx_prep(struct lll_conn *lll, struct pdu_data **pdu_data_tx)
 
 #if !defined(CONFIG_BT_CTLR_DATA_LENGTH_CLEAR)
 #if !defined(CONFIG_BT_CTLR_DF_CONN_CTE_TX) && !defined(CONFIG_BT_CTLR_DF_CONN_CTE_RX)
-		p->resv = 0U;
+		/* Initialize only if vendor PDU octet3 present */
+		if (sizeof(p->octet3.resv)) {
+			p->octet3.resv[0] = 0U;
+		}
 #endif /* !CONFIG_BT_CTLR_DF_CONN_CTE_TX && !CONFIG_BT_CTLR_DF_CONN_CTE_RX */
 #endif /* CONFIG_BT_CTLR_DATA_LENGTH_CLEAR */
 	}
@@ -874,7 +889,7 @@ static inline int isr_rx_pdu(struct lll_conn *lll, struct pdu_data *pdu_data_rx,
 			     uint8_t *is_rx_enqueue,
 			     struct node_tx **tx_release, uint8_t *is_done)
 {
-#if defined(CONFIG_SOC_COMPATIBLE_NRF52832) && \
+#if defined(CONFIG_SOC_NRF52832) && \
 	defined(CONFIG_BT_CTLR_LE_ENC) && \
 	defined(HAL_RADIO_PDU_LEN_MAX) && \
 	(!defined(CONFIG_BT_CTLR_DATA_LENGTH_MAX) || \

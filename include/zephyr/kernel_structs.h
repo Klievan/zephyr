@@ -119,11 +119,6 @@ struct _cpu {
 	struct k_thread *metairq_preempted;
 #endif
 
-#ifdef CONFIG_TIMESLICING
-	/* number of ticks remaining in current time slice */
-	int slice_ticks;
-#endif
-
 	uint8_t id;
 
 #if defined(CONFIG_FPU_SHARING)
@@ -156,7 +151,7 @@ struct _cpu {
 typedef struct _cpu _cpu_t;
 
 struct z_kernel {
-	struct _cpu cpus[CONFIG_MP_NUM_CPUS];
+	struct _cpu cpus[CONFIG_MP_MAX_NUM_CPUS];
 
 #ifdef CONFIG_PM
 	int32_t idle; /* Number of ticks for kernel idling */
@@ -197,6 +192,8 @@ struct z_kernel {
 typedef struct z_kernel _kernel_t;
 
 extern struct z_kernel _kernel;
+
+extern atomic_t _cpus_active;
 
 #ifdef CONFIG_SMP
 

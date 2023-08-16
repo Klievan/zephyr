@@ -11,6 +11,7 @@
 
 /dts-v1/;
 #include <acsip/s76s.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "Ronoth LoDev";
@@ -41,6 +42,7 @@
 		user_button: button {
 			label = "User";
 			gpios = <&gpioc 9 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
 
@@ -107,6 +109,14 @@
 	};
 };
 
+&clk_lsi {
+	status = "okay";
+};
+
+&clk_hsi48 {
+	status = "okay";
+};
+
 &clk_hsi {
 	status = "okay";
 };
@@ -163,10 +173,14 @@
 };
 
 &rtc {
+	clocks = <&rcc STM32_CLOCK_BUS_APB1 0x10000000>,
+		 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
 	status = "okay";
 };
 
 &rng {
+	clocks = <&rcc STM32_CLOCK_BUS_AHB1 0x00100000>,
+		 <&rcc STM32_SRC_HSI48 HSI48_SEL(1)>;
 	status = "okay";
 };
 

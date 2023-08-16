@@ -9,6 +9,7 @@
 #include <zephyr/drivers/display.h>
 #include <zephyr/drivers/mipi_dsi.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(rm68200, CONFIG_DISPLAY_LOG_LEVEL);
@@ -209,6 +210,8 @@ static int rm68200_init(const struct device *dev)
 
 	mdev.data_lanes = config->num_of_lanes;
 	mdev.pixfmt = config->pixel_format;
+	/* RM68200 runs in video mode */
+	mdev.mode_flags = MIPI_DSI_MODE_VIDEO;
 
 	ret = mipi_dsi_attach(config->mipi_dsi, config->channel, &mdev);
 	if (ret < 0) {

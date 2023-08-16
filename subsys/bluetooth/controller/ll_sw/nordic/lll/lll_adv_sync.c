@@ -21,6 +21,8 @@
 #include "util/memq.h"
 #include "util/dbuf.h"
 
+#include "pdu_df.h"
+#include "pdu_vendor.h"
 #include "pdu.h"
 
 #include "lll.h"
@@ -31,6 +33,7 @@
 #include "lll_adv.h"
 #include "lll_adv_pdu.h"
 #include "lll_adv_sync.h"
+#include "lll_adv_iso.h"
 #include "lll_df_types.h"
 
 #include "lll_internal.h"
@@ -39,9 +42,6 @@
 #include "lll_prof_internal.h"
 #include "lll_df_internal.h"
 
-#define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
-#define LOG_MODULE_NAME bt_ctlr_lll_adv_sync
-#include "common/log.h"
 #include "hal/debug.h"
 
 static int init_reset(void);
@@ -120,6 +120,7 @@ static int prepare_cb(struct lll_prepare_param *p)
 	uint32_t remainder;
 	uint32_t start_us;
 	uint8_t phy_s;
+	uint32_t ret;
 	uint8_t upd;
 
 	DEBUG_RADIO_START_A(1);
@@ -237,20 +238,29 @@ static int prepare_cb(struct lll_prepare_param *p)
 
 #if defined(CONFIG_BT_CTLR_XTAL_ADVANCED) && \
 	(EVENT_OVERHEAD_PREEMPT_US <= EVENT_OVERHEAD_PREEMPT_MIN_US)
+	uint32_t overhead;
+
+	overhead = lll_preempt_calc(ull, (TICKER_ID_ADV_SYNC_BASE +
+					  ull_adv_sync_lll_handle_get(lll)), ticks_at_event);
 	/* check if preempt to start has changed */
-	if (lll_preempt_calc(ull, (TICKER_ID_ADV_SYNC_BASE +
-				   ull_adv_sync_lll_handle_get(lll)),
-			     ticks_at_event)) {
+	if (overhead) {
+		LL_ASSERT_OVERHEAD(overhead);
+
 		radio_isr_set(lll_isr_abort, lll);
 		radio_disable();
-	} else
-#endif /* CONFIG_BT_CTLR_XTAL_ADVANCED */
-	{
-		uint32_t ret;
 
-		ret = lll_prepare_done(lll);
-		LL_ASSERT(!ret);
+		return -ECANCELED;
 	}
+#endif /* CONFIG_BT_CTLR_XTAL_ADVANCED */
+
+#if defined(CONFIG_BT_CTLR_ADV_ISO) && defined(CONFIG_BT_TICKER_EXT_EXPIRE_INFO)
+	if (lll->iso) {
+		ull_adv_iso_lll_biginfo_fill(pdu, lll);
+	}
+#endif /* CONFIG_BT_CTLR_ADV_ISO && CONFIG_BT_TICKER_EXT_EXPIRE_INFO */
+
+	ret = lll_prepare_done(lll);
+	LL_ASSERT(!ret);
 
 	DEBUG_RADIO_START_A(1);
 
@@ -292,7 +302,7 @@ static void isr_done(void *param)
 
 #if defined(CONFIG_BT_CTLR_DF_ADV_CTE_TX)
 	if (lll->cte_started) {
-		lll_df_conf_cte_tx_disable();
+		lll_df_cte_tx_disable();
 	}
 #endif /* CONFIG_BT_CTLR_DF_ADV_CTE_TX */
 
@@ -313,8 +323,7 @@ static void isr_done(void *param)
 		rx->type = NODE_RX_TYPE_SYNC_CHM_COMPLETE;
 		rx->rx_ftr.param = lll;
 
-		ull_rx_put(rx->link, rx);
-		ull_rx_sched();
+		ull_rx_put_sched(rx->link, rx);
 	}
 
 	lll_isr_done(lll);
@@ -399,7 +408,8 @@ static void isr_tx(void *param)
 	}
 }
 
-static void switch_radio_complete_and_b2b_tx(const struct lll_adv_sync *lll, uint8_t phy_s)
+static void switch_radio_complete_and_b2b_tx(const struct lll_adv_sync *lll,
+					     uint8_t phy_s)
 {
 #if defined(CONFIG_BT_CTLR_DF_ADV_CTE_TX)
 	if (lll->cte_started) {

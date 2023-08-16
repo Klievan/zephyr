@@ -1173,14 +1173,168 @@ This has been fixed in main for v3.0.0
 CVE-2022-1041
 --------------
 
-Under embargo until 2022/06/19
+Out-of-bound write vulnerability in the Bluetooth mesh core stack can be triggered during provisioning
+
+This has been fixed in main for v3.1.0
+
+- `Zephyr project bug tracker GHSA-p449-9hv9-pj38
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-p449-9hv9-pj38>`_
+
+- `PR 45136 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/45136>`_
+
+- `PR 45188 fix for v3.0.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/45188>`_
+
+- `PR 45187 fix for v2.7.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/45187>`_
 
 CVE-2022-1042
 --------------
 
-Under embargo until 2022/06/19
+Out-of-bound write vulnerability in the Bluetooth mesh core stack can be triggered during provisioning
+
+This has been fixed in main for v3.1.0
+
+- `Zephyr project bug tracker GHSA-j7v7-w73r-mm5x
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-j7v7-w73r-mm5x>`_
+
+- `PR 45066 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/45066>`_
+
+- `PR 45135 fix for v3.0.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/45135>`_
+
+- `PR 45134 fix for v2.7.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/45134>`_
 
 CVE-2022-1841
 --------------
 
-Under embargo until 2022/08/18
+Out-of-Bound Write in tcp_flags
+
+This has been fixed in main for v3.1.0
+
+- `Zephyr project bug tracker GHSA-5c3j-p8cr-2pgh
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-5c3j-p8cr-2pgh>`_
+
+- `PR 45796 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/45796>`_
+
+CVE-2022-2741
+--------------
+
+can: denial-of-service can be triggered by a crafted CAN frame
+
+This has been fixed in main for v3.2.0
+
+- `Zephyr project bug tracker GHSA-hx5v-j59q-c3j8
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-hx5v-j59q-c3j8>`_
+
+- `PR 47903 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/47903>`_
+
+- `PR 47957 fix for v3.1.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/47957>`_
+
+- `PR 47958 fix for v3.0.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/47958>`_
+
+- `PR 47959 fix for v2.7.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/47959>`_
+
+CVE-2022-2993
+--------------
+
+bt: host: Wrong key validation check
+
+This has been fixed in main for v3.2.0
+
+- `Zephyr project bug tracker GHSA-3286-jgjx-8cvr
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-3286-jgjx-8cvr>`_
+
+- `PR 48733 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/48733>`_
+
+CVE-2022-3806
+-------------
+
+DoS: Invalid Initialization in le_read_buffer_size_complete()
+
+- `Zephyr project bug tracker GHSA-w525-fm68-ppq3
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-w525-fm68-ppq3>`_
+
+CVE-2023-0396
+-------------
+
+Buffer Overreads in Bluetooth HCI
+
+- `Zephyr project bug tracker GHSA-8rpp-6vxq-pqg3
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-8rpp-6vxq-pqg3>`_
+
+CVE-2023-0397
+-------------
+
+DoS: Invalid Initialization in le_read_buffer_size_complete()
+
+- `Zephyr project bug tracker GHSA-wc2h-h868-q7hj
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-wc2h-h868-q7hj>`_
+
+This has been fixed in main for v3.3.0
+
+- `PR 54905 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/54905>`_
+
+- `PR 47957 fix for v3.2.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/55024>`_
+
+- `PR 47958 fix for v3.1.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/55023>`_
+
+- `PR 47959 fix for v2.7.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/55022>`_
+
+CVE-2023-0779
+-------------
+
+net: shell: Improper input validation
+
+- `Zephyr project bug tracker GHSA-9xj8-6989-r549
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-9xj8-6989-r549>`_
+
+This has been fixed in main for v3.3.0
+
+- `PR 54371 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/54371>`_
+
+- `PR 54380 fix for v3.2.0
+  <https://github.com/zephyrproject-rtos/zephyr/pull/54380>`_
+
+- `PR 54381 fix for v2.7.4
+  <https://github.com/zephyrproject-rtos/zephyr/pull/54381>`_
+
+CVE-2023-1901
+-------------
+
+HCI send_sync Dangling Semaphore Reference Re-use
+
+- `Zephyr project bug tracker GHSA-xvvm-8mcm-9cq3
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-xvvm-8mcm-9cq3>`_
+
+This has been fixed in main for v3.4.0
+
+- `PR 56709 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/56709>`_
+
+CVE-2023-1902
+-------------
+
+HCI Connection Creation Dangling State Reference Re-use
+
+- `Zephyr project bug tracker GHSA-fx9g-8fr2-q899
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-fx9g-8fr2-q899>`_
+
+This has been fixed in main for v3.4.0
+
+- `PR 56709 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/56709>`_

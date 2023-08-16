@@ -29,7 +29,7 @@ LOG_MODULE_REGISTER(DHT, CONFIG_SENSOR_LOG_LEVEL);
  *         -1 if duration exceeds DHT_SIGNAL_MAX_WAIT_DURATION
  */
 static int8_t dht_measure_signal_duration(const struct device *dev,
-	       	                   bool active)
+					  bool active)
 {
 	const struct dht_config *cfg = dev->config;
 	uint32_t elapsed_cycles;
@@ -184,7 +184,7 @@ static int dht_channel_get(const struct device *dev,
 				+ drv_data->sample[1];
 			val->val1 = raw_val / 10;
 			val->val2 = (raw_val % 10) * 100000;
-		} else { /* chan == SENSOR_CHAN_AMBIENT_TEMP */
+		} else if (chan == SENSOR_CHAN_AMBIENT_TEMP) {
 			raw_val = (drv_data->sample[2] << 8)
 				+ drv_data->sample[3];
 
@@ -199,15 +199,19 @@ static int dht_channel_get(const struct device *dev,
 				val->val1 = -val->val1;
 				val->val2 = -val->val2;
 			}
+		} else {
+			return -ENOTSUP;
 		}
 	} else {
 		/* use only integral data byte */
 		if (chan == SENSOR_CHAN_HUMIDITY) {
 			val->val1 = drv_data->sample[0];
 			val->val2 = 0;
-		} else { /* chan == SENSOR_CHAN_AMBIENT_TEMP */
+		} else if (chan == SENSOR_CHAN_AMBIENT_TEMP) {
 			val->val1 = drv_data->sample[2];
 			val->val2 = 0;
+		} else {
+			return -ENOTSUP;
 		}
 	}
 
@@ -241,7 +245,7 @@ static int dht_init(const struct device *dev)
 		.dio_gpio = GPIO_DT_SPEC_INST_GET(inst, dio_gpios),			\
 	};										\
 											\
-	DEVICE_DT_INST_DEFINE(inst, &dht_init, NULL,					\
+	SENSOR_DEVICE_DT_INST_DEFINE(inst, &dht_init, NULL,				\
 			      &dht_data_##inst, &dht_config_##inst,			\
 			      POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY, &dht_api);	\
 

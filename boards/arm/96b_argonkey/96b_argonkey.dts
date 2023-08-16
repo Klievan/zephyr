@@ -7,6 +7,7 @@
 /dts-v1/;
 #include <st/f4/stm32f412Xg.dtsi>
 #include <st/f4/stm32f412c(e-g)ux-pinctrl.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "Tocoding Argonkey 96boards";
@@ -36,6 +37,7 @@
 		user_button: button {
 			label = "User";
 			gpios = <&gpioa 2 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
 
@@ -45,6 +47,10 @@
 		sw0 = &user_button;
 		accel0 = &lsm6dsl;
 	};
+};
+
+&clk_lsi {
+	status = "okay";
 };
 
 &clk_hse {
@@ -58,6 +64,13 @@
 	div-p = <2>;
 	div-q = <8>;
 	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&plli2s {
+	div-m = <8>;
+	mul-n = <192>;
+	div-r = <3>;
 	status = "okay";
 };
 
@@ -161,5 +174,7 @@
 };
 
 &rtc {
+	clocks = <&rcc STM32_CLOCK_BUS_APB1 0x10000000>,
+		 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
 	status = "okay";
 };

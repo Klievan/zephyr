@@ -9,6 +9,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/timer/system_timer.h>
 #include <altera_common.h>
+#include <zephyr/irq.h>
 
 #include "altera_avalon_timer_regs.h"
 #include "altera_avalon_timer.h"
@@ -72,9 +73,8 @@ uint32_t sys_clock_elapsed(void)
 	return 0;
 }
 
-static int sys_clock_driver_init(const struct device *dev)
+static int sys_clock_driver_init(void)
 {
-	ARG_UNUSED(dev);
 
 	IOWR_ALTERA_AVALON_TIMER_PERIODL(TIMER_0_BASE,
 			k_ticks_to_cyc_floor32(1) & 0xFFFF);

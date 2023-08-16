@@ -13,3 +13,6 @@ supported:
   - uart
   - gpio
   - pwm
+  - watchdog
+  - dma
+  - spi

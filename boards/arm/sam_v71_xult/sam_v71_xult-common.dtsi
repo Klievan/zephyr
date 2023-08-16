@@ -8,6 +8,7 @@
  */
 
 #include "sam_v71_xult-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	aliases {
@@ -46,7 +47,7 @@
 	pwmleds {
 		compatible = "pwm-leds";
 		pwm_led0: pwm_led_0 {
-			pwms = <&pwm0 0 PWM_MSEC(20)>;
+			pwms = <&pwm0 0 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
 		};
 	};
 
@@ -60,10 +61,12 @@
 		sw0_user_button: button_1 {
 			label = "User Button 0";
 			gpios = <&pioa 9 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 		sw1_user_button: button_2 {
 			label = "User Button 1";
 			gpios = <&piob 12 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			zephyr,code = <INPUT_KEY_1>;
 		};
 	};
 
@@ -196,6 +199,9 @@
 
 	cs-gpios = <&piod 25 GPIO_ACTIVE_LOW>,
 		   <&piod 27 GPIO_ACTIVE_LOW>;
+
+	dmas = <&xdmac 1 DMA_PERID_SPI0_TX>, <&xdmac 2 DMA_PERID_SPI0_RX>;
+	dma-names = "tx", "rx";
 };
 
 &usart1 {
@@ -230,13 +236,7 @@ zephyr_udc0: &usbhs {
 	pinctrl-names = "default";
 
 	mac-eeprom = <&eeprom>;
-
-	phy: phy {
-		compatible = "ethernet-phy";
-		status = "okay";
-		address = <0>;
-		mdio = <&mdio>;
-	};
+	phy-handle = <&phy>;
 };
 
 &mdio {
@@ -244,6 +244,13 @@ zephyr_udc0: &usbhs {
 
 	pinctrl-0 = <&mdio_default>;
 	pinctrl-names = "default";
+
+	phy: phy {
+		compatible = "ethernet-phy";
+		status = "okay";
+		address = <0>;
+		mdio = <&mdio>;
+	};
 };
 
 &pwm0 {

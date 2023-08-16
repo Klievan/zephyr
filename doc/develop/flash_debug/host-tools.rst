@@ -14,7 +14,6 @@ more information on these commands.
 
 .. _atmel_sam_ba_bootloader:
 
-
 SAM Boot Assistant (SAM-BA)
 ***************************
 
@@ -182,6 +181,73 @@ As a quick reference, see these three board documentation pages:
   - :ref:`arduino_nano_33_iot` (Arduino bootloader)
   - :ref:`arduino_nano_33_ble` (Arduino legacy bootloader)
 
+Enabling BOSSAC on Windows Native [Experimental]
+------------------------------------------------
+
+Zephyr SDK´s bossac is currently supported on Linux and macOS only. Windows support
+can be achieved by using the bossac version from `BOSSA official releases`_.
+After installing using default options, the :file:`bossac.exe` must be added to
+Windows PATH. A specific bossac executable can be used by passing the
+``--bossac`` option, as follows:
+
+.. code-block:: console
+
+    west flash -r bossac --bossac="C:\Program Files (x86)\BOSSA\bossac.exe" --bossac-port="COMx"
+
+.. note::
+
+   WSL is not currently supported.
+
+
+.. _linkserver-debug-host-tools:
+
+LinkServer Debug  Host Tools
+****************************
+
+Linkserver is a utility for launching and managing GDB servers for NXP debug probes,
+which also provides a command-line target flash programming capabilities.
+Linkserver can be used with NXP MCUXpresso for Visual Studio Code implementation,
+with custom debug configurations based on GNU tools or as part of a headless solution
+for continuous integration and test. Linkserver can be used with MCU-Link, LPC-Link2,
+LPC11U35-based and OpenSDA based standalone or on-board debug probes from NXP.
+The Linkserver installer also includes the firmware update utilities for MCU-Link and
+the LPCScrypt utility for use with LPC-Link2. Linkserver can also be installed using
+the MCUXpresso Installer.
+
+LinkServer is compatible with the following debug probes:
+
+- :ref:`lpclink2-cmsis-onboard-debug-probe`
+
+Supported west commands:
+
+1. flash
+#. debug
+#. debugserver
+#. attach
+
+Notes:
+
+
+1. Probes can be listed with LinkServer:
+
+.. code-block:: console
+
+   LinkServer probes
+
+2. Use the LinkServer west runner   ``--probe`` option to pass the probe index.
+
+.. code-block:: console
+
+   west flash --runner=linkserver --probe=3
+
+3. device specific settings can be overridden with the west runner for LinkServer with
+   the option '--override'. May be used multiple times. The format is dictated
+   by LinkServer, e.g.:
+
+.. code-block:: console
+
+   west flash --runner=linkserver --override /device/memory/5/flash-driver=MIMXRT500_SFDP_MXIC_OSPI_S.cfx
+
 .. _jlink-debug-host-tools:
 
 J-Link Debug Host Tools
@@ -255,6 +321,58 @@ These debug host tools are compatible with the following debug probes:
 
 Check if your SoC is listed in `pyOCD Supported Devices`_.
 
+.. _lauterbach-trace32-debug-host-tools:
+
+Lauterbach TRACE32 Debug Host Tools
+***********************************
+
+`Lauterbach TRACE32`_ is a product line of microprocessor development tools,
+debuggers and real-time tracer with support for JTAG, SWD, NEXUS or ETM over
+multiple core architectures, including Arm Cortex-A/-R/-M, RISC-V, Xtensa, etc.
+Zephyr allows users to develop and program boards with Lauterbach TRACE32
+support using :ref:`west <west-flashing>`.
+
+The runner consists of a wrapper around TRACE32 software, and allows a Zephyr
+board to execute a custom start-up script (Practice Script) for the different
+commands supported, including the ability to pass extra arguments from CMake.
+Is up to the board using this runner to define the actions performed on each
+command.
+
+Install Lauterbach TRACE32 Software
+-----------------------------------
+
+Download Lauterbach TRACE32 software from the `Lauterbach TRACE32 download website`_
+(registration required) and follow the installation steps described in
+`Lauterbach TRACE32 Installation Guide`_.
+
+Flashing and Debugging
+----------------------
+
+Set the :ref:`environment variable <env_vars>` :envvar:`T32_DIR` to the TRACE32
+system directory. Then execute ``west flash`` or ``west debug`` commands to
+flash or debug the Zephyr application as detailed in :ref:`west-build-flash-debug`.
+The ``debug`` command launches TRACE32 GUI to allow debug the Zephyr
+application, while the ``flash`` command hides the GUI and perform all
+operations in the background.
+
+By default, the ``t32`` runner will launch TRACE32 using the default
+configuration file named ``config.t32`` located in the TRACE32 system
+directory. To use a different configuration file, supply the argument
+``--config CONFIG`` to the runner, for example:
+
+.. code-block:: console
+
+	west flash --config myconfig.t32
+
+For more options, run ``west flash --context -r t32`` to print the usage.
+
+Zephyr RTOS Awareness
+---------------------
+
+To enable Zephyr RTOS awareness follow the steps described in
+`Lauterbach TRACE32 Zephyr OS Awareness Manual`_.
+
+
 .. _J-Link Software and Documentation Pack:
    https://www.segger.com/downloads/jlink/#J-LinkSoftwareAndDocumentationPack
 
@@ -262,13 +380,28 @@ Check if your SoC is listed in `pyOCD Supported Devices`_.
    https://www.segger.com/downloads/supported-devices.php
 
 .. _Getting OpenOCD:
-   http://openocd.org/getting-openocd/
+   https://openocd.org/pages/getting-openocd.html
 
 .. _OpenOCD Supported Devices:
-   https://github.com/zephyrproject-rtos/openocd/tree/master/tcl/target
+   https://github.com/zephyrproject-rtos/openocd/tree/latest/tcl/target
 
 .. _pyOCD Supported Devices:
-   https://github.com/mbedmicro/pyOCD/tree/master/pyocd/target/builtin
+   https://github.com/pyocd/pyOCD/tree/main/pyocd/target/builtin
 
 .. _OpenOCD Windows:
     http://gnutoolchains.com/arm-eabi/openocd/
+
+.. _Lauterbach TRACE32:
+    https://www.lauterbach.com/
+
+.. _Lauterbach TRACE32 download website:
+   http://www.lauterbach.com/download_trace32.html
+
+.. _Lauterbach TRACE32 Installation Guide:
+   https://www2.lauterbach.com/pdf/installation.pdf
+
+.. _Lauterbach TRACE32 Zephyr OS Awareness Manual:
+	https://www2.lauterbach.com/pdf/rtos_zephyr.pdf
+
+.. _BOSSA official releases:
+	https://github.com/shumatech/BOSSA/releases

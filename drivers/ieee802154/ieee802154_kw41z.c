@@ -359,10 +359,8 @@ static void kw41z_tmr3_disable(void)
 
 static enum ieee802154_hw_caps kw41z_get_capabilities(const struct device *dev)
 {
-	return IEEE802154_HW_FCS |
-		IEEE802154_HW_2_4_GHZ |
-		IEEE802154_HW_FILTER |
-		IEEE802154_HW_TX_RX_ACK;
+	return IEEE802154_HW_FCS | IEEE802154_HW_2_4_GHZ | IEEE802154_HW_FILTER |
+	       IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_RX_TX_ACK;
 }
 
 static int kw41z_cca(const struct device *dev)
@@ -514,8 +512,8 @@ static inline void kw41z_rx(struct kw41z_context *kw41z, uint8_t len)
 	pkt_len = len - KW41Z_FCS_LENGTH;
 #endif
 
-	pkt = net_pkt_alloc_with_buffer(kw41z->iface, pkt_len,
-					AF_UNSPEC, 0, K_NO_WAIT);
+	pkt = net_pkt_rx_alloc_with_buffer(kw41z->iface, pkt_len,
+					   AF_UNSPEC, 0, K_NO_WAIT);
 	if (!pkt) {
 		LOG_ERR("No buf available");
 		goto out;
@@ -582,8 +580,8 @@ static void handle_ack(struct kw41z_context *kw41z, uint8_t seq_number)
 	struct net_pkt *ack_pkt;
 	uint8_t ack_psdu[ACK_FRAME_LEN];
 
-	ack_pkt = net_pkt_alloc_with_buffer(kw41z->iface, ACK_FRAME_LEN,
-					    AF_UNSPEC, 0, K_NO_WAIT);
+	ack_pkt = net_pkt_rx_alloc_with_buffer(kw41z->iface, ACK_FRAME_LEN,
+					       AF_UNSPEC, 0, K_NO_WAIT);
 	if (!ack_pkt) {
 		LOG_ERR("No free packet available.");
 		return;
@@ -602,11 +600,11 @@ static void handle_ack(struct kw41z_context *kw41z, uint8_t seq_number)
 
 	/* Use some fake values for LQI and RSSI. */
 	(void)net_pkt_set_ieee802154_lqi(ack_pkt, 80);
-	(void)net_pkt_set_ieee802154_rssi(ack_pkt, -40);
+	(void)net_pkt_set_ieee802154_rssi_dbm(ack_pkt, -40);
 
 	net_pkt_cursor_init(ack_pkt);
 
-	if (ieee802154_radio_handle_ack(kw41z->iface, ack_pkt) != NET_OK) {
+	if (ieee802154_handle_ack(kw41z->iface, ack_pkt) != NET_OK) {
 		LOG_INF("ACK packet not handled - releasing.");
 	}
 
@@ -665,10 +663,6 @@ static int kw41z_tx(const struct device *dev, enum ieee802154_tx_mode mode,
 
 	/* Clear all IRQ flags */
 	ZLL->IRQSTS = ZLL->IRQSTS;
-
-	/*
-	 * Current Zephyr 802.15.4 stack doesn't support ACK offload
-	 */
 
 	/* Perform automatic reception of ACK frame, if required */
 	if (ieee802154_is_ar_flag_set(frag)) {

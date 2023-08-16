@@ -8,6 +8,7 @@
 #include <zephyr/sys_clock.h>
 #include <zephyr/spinlock.h>
 #include <zephyr/drivers/interrupt_controller/loapic.h>
+#include <zephyr/irq.h>
 
 BUILD_ASSERT(!IS_ENABLED(CONFIG_SMP), "APIC timer doesn't support SMP");
 
@@ -217,11 +218,10 @@ uint32_t sys_clock_cycle_get_32(void)
 
 #endif
 
-static int sys_clock_driver_init(const struct device *dev)
+static int sys_clock_driver_init(void)
 {
 	uint32_t val;
 
-	ARG_UNUSED(dev);
 
 	val = x86_read_loapic(LOAPIC_TIMER_CONFIG);	/* set divider */
 	val &= ~DCR_DIVIDER_MASK;

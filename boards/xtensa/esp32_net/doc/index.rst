@@ -35,16 +35,16 @@ Build and flash applications as usual (see :ref:`build_an_application` and
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: esp32
+   :board: esp32_devkitc_wroom
    :goals: build
 
-The usual ``flash`` target will work with the ``esp32`` board
+The usual ``flash`` target will work with the ``esp32_devkitc_wroom`` board
 configuration. Here is an example for the :ref:`hello_world`
 application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: esp32
+   :board: esp32_devkitc_wroom
    :goals: flash
 
 Open the serial monitor using the following command:
@@ -59,23 +59,14 @@ message in the monitor:
 .. code-block:: console
 
    ***** Booting Zephyr OS vx.x.x-xxx-gxxxxxxxxxxxx *****
-   Hello World! esp32
+   Hello World! esp32_devkitc_wroom
 
 Debugging
 ---------
 
 As with much custom hardware, the ESP32 modules require patches to
-OpenOCD that are not upstreamed. Espressif maintains their own fork of
-the project. The custom OpenOCD can be obtained by running the following extension:
-
-.. code-block:: console
-
-   west espressif install
-
-.. note::
-
-   By default, the OpenOCD will be downloaded and installed under $HOME/.espressif/tools/zephyr directory
-   (%USERPROFILE%/.espressif/tools/zephyr on Windows).
+OpenOCD that are not upstreamed yet. Espressif maintains their own fork of
+the project. The custom OpenOCD can be obtained at `OpenOCD ESP32`_
 
 The Zephyr SDK uses a bundled version of OpenOCD by default. You can overwrite that behavior by adding the
 ``-DOPENOCD=<path/to/bin/openocd> -DOPENOCD_DEFAULT_PATH=<path/to/openocd/share/openocd/scripts>``
@@ -85,7 +76,7 @@ Here is an example for building the :ref:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: esp32
+   :board: esp32_devkitc_wroom
    :goals: build flash
    :gen-args: -DOPENOCD=<path/to/bin/openocd> -DOPENOCD_DEFAULT_PATH=<path/to/openocd/share/openocd/scripts>
 
@@ -93,7 +84,7 @@ You can debug an application in the usual way. Here is an example for the :ref:`
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: esp32
+   :board: esp32_devkitc_wroom
    :goals: debug
 
 Using JTAG
@@ -173,14 +164,6 @@ References
 
 .. _`ESP32 Technical Reference Manual`: https://espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf
 .. _`JTAG debugging for ESP32`: http://esp-idf.readthedocs.io/en/latest/api-guides/jtag-debugging/index.html
-.. _`toolchain`: https://esp-idf.readthedocs.io/en/latest/get-started/index.html#get-started-setup-toochain
-.. _`SDK`: https://esp-idf.readthedocs.io/en/latest/get-started/index.html#get-started-get-esp-idf
 .. _`Hardware Reference`: https://esp-idf.readthedocs.io/en/latest/hw-reference/index.html
-.. _`esptool documentation`: https://github.com/espressif/esptool/blob/master/README.md
-.. _`esptool.py`: https://github.com/espressif/esptool
-.. _`ESP-WROVER-32 V3 Getting Started Guide`: https://dl.espressif.com/doc/esp-idf/latest/get-started/get-started-wrover-kit.html
-.. _`installing prerequisites`: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html#step-1-install-prerequisites
-.. _`set up the tools`: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html#step-3-set-up-the-tools
-.. _`set up environment variables`: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html#step-4-set-up-the-environment-variables
-.. _`ESP32 Toolchain`: https://docs.espressif.com/projects/esp-idf/en/v4.2/esp32/api-guides/tools/idf-tools.html#xtensa-esp32-elf
-.. _`OpenOCD for ESP32 download`: https://docs.espressif.com/projects/esp-idf/en/v4.2/esp32/api-guides/tools/idf-tools.html#openocd-esp32
+.. _`ESP-WROVER-32 V3 Getting Started Guide`: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/esp32/get-started-wrover-kit.html
+.. _`OpenOCD ESP32`: https://github.com/espressif/openocd-esp32/releases

@@ -1,11 +1,8 @@
-/* ring_buffer.h: Simple ring buffer API */
-
 /*
  * Copyright (c) 2015 Intel Corporation
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-/** @file */
 
 #ifndef ZEPHYR_INCLUDE_SYS_RING_BUFFER_H_
 #define ZEPHYR_INCLUDE_SYS_RING_BUFFER_H_
@@ -18,8 +15,7 @@
 extern "C" {
 #endif
 
-#define SIZE32_OF(x) (sizeof((x))/sizeof(uint32_t))
-
+/** @cond INTERNAL_HIDDEN */
 /* The limit is used by algorithm for distinguishing between empty and full
  * state.
  */
@@ -27,11 +23,13 @@ extern "C" {
 
 #define RING_BUFFER_SIZE_ASSERT_MSG \
 	"Size too big"
+/** @endcond */
 
 /**
  * @brief A structure to represent a ring buffer
  */
 struct ring_buf {
+	/** @cond INTERNAL_HIDDEN */
 	uint8_t *buffer;
 	int32_t put_head;
 	int32_t put_tail;
@@ -40,7 +38,18 @@ struct ring_buf {
 	int32_t get_tail;
 	int32_t get_base;
 	uint32_t size;
+	/** @endcond */
 };
+
+/**
+ * @file
+ * @defgroup ring_buffer_apis Ring Buffer APIs
+ * @ingroup datastructure_apis
+ *
+ * @brief Simple ring buffer implementation.
+ *
+ * @{
+ */
 
 /**
  * @brief Function to force ring_buf internal states to given value
@@ -52,16 +61,6 @@ static inline void ring_buf_internal_reset(struct ring_buf *buf, int32_t value)
 	buf->put_head = buf->put_tail = buf->put_base = value;
 	buf->get_head = buf->get_tail = buf->get_base = value;
 }
-
-/**
- * @brief Data Structure APIs
- * @defgroup datastructure_apis Data Structure APIs
- */
-/**
- * @defgroup ring_buffer_apis Ring Buffer APIs
- * @ingroup datastructure_apis
- * @{
- */
 
 /**
  * @brief Define and initialize a ring buffer for byte data.
@@ -134,6 +133,16 @@ static inline void ring_buf_internal_reset(struct ring_buf *buf, int32_t value)
  */
 #define RING_BUF_ITEM_DECLARE_POW2(name, pow) \
 	RING_BUF_ITEM_DECLARE(name, BIT(pow))
+
+/**
+ * @brief Compute the ring buffer size in 32-bit needed to store an element
+ *
+ * The argument can be a type or an expression.
+ * Note: rounds up if the size is not a multiple of 32 bits.
+ *
+ * @param expr Expression or type to compute the size of
+ */
+#define RING_BUF_ITEM_SIZEOF(expr) DIV_ROUND_UP(sizeof(expr), sizeof(uint32_t))
 
 /**
  * @brief Initialize a ring buffer for byte data.

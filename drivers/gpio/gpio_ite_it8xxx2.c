@@ -6,14 +6,21 @@
  */
 #include <errno.h>
 #include <zephyr/device.h>
+#include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/dt-bindings/gpio/ite-it8xxx2-gpio.h>
 #include <zephyr/dt-bindings/interrupt-controller/ite-intc.h>
+#include <zephyr/irq.h>
 #include <zephyr/types.h>
 #include <zephyr/sys/util.h>
 #include <string.h>
 #include <zephyr/logging/log.h>
-#include "gpio_utils.h"
+#include <zephyr/drivers/gpio/gpio_utils.h>
+
+#include <chip_chipregs.h>
+#include <soc_common.h>
+
+LOG_MODULE_REGISTER(gpio_it8xxx2, LOG_LEVEL_ERR);
 
 #define DT_DRV_COMPAT ite_it8xxx2_gpio
 
@@ -366,6 +373,26 @@ static int gpio_ite_configure(const struct device *dev,
 		return -ENOTSUP;
 	}
 
+	if (flags == GPIO_DISCONNECTED) {
+		*reg_gpcr = GPCR_PORT_PIN_MODE_TRISTATE;
+		/*
+		 * Since not all GPIOs can be to configured as tri-state,
+		 * prompt error if pin doesn't support the flag.
+		 */
+		if (*reg_gpcr != GPCR_PORT_PIN_MODE_TRISTATE) {
+			/* Go back to default setting (input) */
+			*reg_gpcr = GPCR_PORT_PIN_MODE_INPUT;
+			LOG_ERR("Cannot config GPIO-%c%d as tri-state",
+				(gpio_config->index + 'A'), pin);
+			return -ENOTSUP;
+		}
+		/*
+		 * The following configuration isn't necessary because the pin
+		 * was configured as disconnected.
+		 */
+		return 0;
+	}
+
 	/*
 	 * Select open drain first, so that we don't glitch the signal
 	 * when changing the line to an output.
@@ -453,11 +480,17 @@ static int gpio_ite_get_config(const struct device *dev,
 	/* 1.8V or 3.3V */
 	reg_1p8v = &IT8XXX2_GPIO_GCRX(
 			gpio_1p8v[gpio_config->index][pin].offset);
-	mask_1p8v = gpio_1p8v[gpio_config->index][pin].mask_1p8v;
-	if (*reg_1p8v & mask_1p8v) {
-		flags |= GPIO_VOLTAGE_1P8;
-	} else {
-		flags |= GPIO_VOLTAGE_3P3;
+	/*
+	 * Since not all GPIOs support voltage selection, voltage flag
+	 * is only set if voltage selection register is present.
+	 */
+	if (reg_1p8v != &IT8XXX2_GPIO_GCRX(0)) {
+		mask_1p8v = gpio_1p8v[gpio_config->index][pin].mask_1p8v;
+		if (*reg_1p8v & mask_1p8v) {
+			flags |= IT8XXX2_GPIO_VOLTAGE_1P8;
+		} else {
+			flags |= IT8XXX2_GPIO_VOLTAGE_3P3;
+		}
 	}
 
 	/* set input or output. */
@@ -583,14 +616,24 @@ static int gpio_ite_pin_interrupt_configure(const struct device *dev,
 	const struct gpio_ite_cfg *gpio_config = DEV_GPIO_CFG(dev);
 	uint8_t gpio_irq = gpio_config->gpio_irq[pin];
 
+#ifdef CONFIG_GPIO_ENABLE_DISABLE_INTERRUPT
+	if (mode == GPIO_INT_MODE_DISABLED || mode == GPIO_INT_MODE_DISABLE_ONLY) {
+#else
 	if (mode == GPIO_INT_MODE_DISABLED) {
+#endif /* CONFIG_GPIO_ENABLE_DISABLE_INTERRUPT */
 		/* Disable GPIO interrupt */
 		irq_disable(gpio_irq);
 		return 0;
+#ifdef CONFIG_GPIO_ENABLE_DISABLE_INTERRUPT
+	} else if (mode == GPIO_INT_MODE_ENABLE_ONLY) {
+		/* Only enable GPIO interrupt */
+		irq_enable(gpio_irq);
+		return 0;
+#endif /* CONFIG_GPIO_ENABLE_DISABLE_INTERRUPT */
 	}
 
 	if (mode == GPIO_INT_MODE_LEVEL) {
-		printk("Level trigger mode not supported.\r\n");
+		LOG_ERR("Level trigger mode not supported");
 		return -ENOTSUP;
 	}
 
@@ -641,11 +684,6 @@ static const struct gpio_driver_api gpio_ite_driver_api = {
 	.manage_callback = gpio_ite_manage_callback,
 };
 
-static int gpio_ite_init(const struct device *dev)
-{
-	return 0;
-}
-
 #define GPIO_ITE_DEV_CFG_DATA(inst)                                \
 static struct gpio_ite_data gpio_ite_data_##inst;                  \
 static const struct gpio_ite_cfg gpio_ite_cfg_##inst = {           \
@@ -669,7 +707,7 @@ static const struct gpio_ite_cfg gpio_ite_cfg_##inst = {           \
 	.gpio_irq[7] = DT_INST_IRQ_BY_IDX(inst, 7, irq),           \
 	};                                                         \
 DEVICE_DT_INST_DEFINE(inst,                                        \
-		gpio_ite_init,                                     \
+		NULL,                                              \
 		NULL,                                              \
 		&gpio_ite_data_##inst,                             \
 		&gpio_ite_cfg_##inst,                              \
@@ -679,9 +717,8 @@ DEVICE_DT_INST_DEFINE(inst,                                        \
 
 DT_INST_FOREACH_STATUS_OKAY(GPIO_ITE_DEV_CFG_DATA)
 
-static int gpio_it8xxx2_init_set(const struct device *arg)
+static int gpio_it8xxx2_init_set(void)
 {
-	ARG_UNUSED(arg);
 
 	if (IS_ENABLED(CONFIG_SOC_IT8XXX2_GPIO_GROUP_K_L_DEFAULT_PULL_DOWN)) {
 		const struct device *const gpiok = DEVICE_DT_GET(DT_NODELABEL(gpiok));

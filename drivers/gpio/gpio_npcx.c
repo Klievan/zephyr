@@ -9,9 +9,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/dt-bindings/gpio/nuvoton-npcx-gpio.h>
 #include <soc.h>
 
-#include "gpio_utils.h"
+#include <zephyr/drivers/gpio/gpio_utils.h>
 #include "soc_gpio.h"
 #include "soc_miwu.h"
 
@@ -127,11 +128,13 @@ static int gpio_npcx_config(const struct device *dev,
 
 	/* Does this IO pad support low-voltage input (1.8V) detection? */
 	if (lvol->ctrl != NPCX_DT_LVOL_CTRL_NONE) {
+		gpio_flags_t volt = flags & NPCX_GPIO_VOLTAGE_MASK;
+
 		/*
 		 * If this IO pad is configured for low-voltage input detection,
 		 * the related drive type must select to open-drain also.
 		 */
-		if ((flags & GPIO_VOLTAGE_1P8) != 0) {
+		if (volt == NPCX_GPIO_VOLTAGE_1P8) {
 			flags |= GPIO_OPEN_DRAIN;
 			npcx_lvol_set_detect_level(lvol->ctrl, lvol->bit, true);
 		} else {
@@ -215,7 +218,7 @@ static int gpio_npcx_pin_get_config(const struct device *port, gpio_pin_t pin,
 	/* Enable low-voltage detection? */
 	if (lvol->ctrl != NPCX_DT_LVOL_CTRL_NONE &&
 		npcx_lvol_get_detect_level(lvol->ctrl, lvol->bit)) {
-		flags |= GPIO_VOLTAGE_1P8;
+		flags |= NPCX_GPIO_VOLTAGE_1P8;
 	};
 
 	*out_flags = flags;
@@ -296,6 +299,15 @@ static int gpio_npcx_pin_interrupt_configure(const struct device *dev,
 			config->port, pin, config->wui_maps[pin].table,
 			config->wui_maps[pin].group,
 			config->wui_maps[pin].bit);
+#ifdef CONFIG_GPIO_ENABLE_DISABLE_INTERRUPT
+	if (mode == GPIO_INT_MODE_DISABLE_ONLY) {
+		npcx_miwu_irq_disable(&config->wui_maps[pin]);
+		return 0;
+	} else if (mode == GPIO_INT_MODE_ENABLE_ONLY) {
+		npcx_miwu_irq_enable(&config->wui_maps[pin]);
+		return 0;
+	}
+#endif /* CONFIG_GPIO_ENABLE_DISABLE_INTERRUPT */
 
 	/* Disable irq of wake-up input io-pads before configuring them */
 	npcx_miwu_irq_disable(&config->wui_maps[pin]);
@@ -344,7 +356,7 @@ static int gpio_npcx_manage_callback(const struct device *dev,
 				      struct gpio_callback *callback, bool set)
 {
 	const struct gpio_npcx_config *const config = dev->config;
-	struct miwu_io_callback *miwu_cb = (struct miwu_io_callback *)callback;
+	struct miwu_callback *miwu_cb = (struct miwu_callback *)callback;
 	int pin = find_lsb_set(callback->pin_mask) - 1;
 
 	/* pin_mask should not be zero */
@@ -364,7 +376,7 @@ static int gpio_npcx_manage_callback(const struct device *dev,
 			config->port);
 
 	/* Insert or remove a IO callback which being called in MIWU ISRs */
-	return npcx_miwu_manage_gpio_callback(miwu_cb, set);
+	return npcx_miwu_manage_callback(miwu_cb, set);
 }
 
 /* GPIO driver registration */

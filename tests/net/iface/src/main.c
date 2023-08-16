@@ -55,8 +55,7 @@ static struct in6_addr ll_addr = { { { 0xfe, 0x80, 0x43, 0xb8, 0, 0, 0, 0,
 				       0, 0, 0, 0xf2, 0xaa, 0x29, 0x02,
 				       0x04 } } };
 
-static struct in6_addr in6addr_mcast = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
-					     0, 0, 0, 0, 0, 0, 0, 0x1 } } };
+static struct in6_addr in6addr_mcast;
 
 static struct net_if *iface1;
 static struct net_if *iface2;
@@ -74,11 +73,6 @@ struct net_if_test {
 	uint8_t mac_addr[sizeof(struct net_eth_addr)];
 	struct net_linkaddr ll_addr;
 };
-
-static int net_iface_dev_init(const struct device *dev)
-{
-	return 0;
-}
 
 static uint8_t *net_iface_get_mac(const struct device *dev)
 {
@@ -149,7 +143,7 @@ static struct dummy_api net_iface_api = {
 NET_DEVICE_INIT_INSTANCE(net_iface1_test,
 			 "iface1",
 			 iface1,
-			 net_iface_dev_init,
+			 NULL,
 			 NULL,
 			 &net_iface1_data,
 			 NULL,
@@ -162,7 +156,7 @@ NET_DEVICE_INIT_INSTANCE(net_iface1_test,
 NET_DEVICE_INIT_INSTANCE(net_iface2_test,
 			 "iface2",
 			 iface2,
-			 net_iface_dev_init,
+			 NULL,
 			 NULL,
 			 &net_iface2_data,
 			 NULL,
@@ -175,7 +169,7 @@ NET_DEVICE_INIT_INSTANCE(net_iface2_test,
 NET_DEVICE_INIT_INSTANCE(net_iface3_test,
 			 "iface3",
 			 iface3,
-			 net_iface_dev_init,
+			 NULL,
 			 NULL,
 			 &net_iface3_data,
 			 NULL,
@@ -433,6 +427,92 @@ static void iface_teardown(void *dummy)
 	net_if_down(iface2);
 	net_if_down(iface3);
 	net_if_down(iface4);
+}
+
+static void test_iface_init(struct net_if *iface, bool carrier, bool dormant)
+{
+	net_if_down(iface);
+
+	if (carrier) {
+		net_if_carrier_on(iface);
+	} else {
+		net_if_carrier_off(iface);
+	}
+
+	if (dormant) {
+		net_if_dormant_on(iface);
+	} else {
+		net_if_dormant_off(iface);
+	}
+
+	net_if_up(iface);
+}
+
+ZTEST(net_iface, test_oper_state)
+{
+	/* Carrier OFF, Dormant OFF - interface should remain down */
+	test_iface_init(iface1, false, false);
+	zassert_false(net_if_is_up(iface1), "Interface should be down");
+	zassert_equal(net_if_oper_state(iface1), NET_IF_OPER_DOWN,
+		      "Wrong operational state");
+
+	/* Carrier ON transition - interface should go up */
+	net_if_carrier_on(iface1);
+	zassert_true(net_if_is_up(iface1), "Interface should be up");
+	zassert_equal(net_if_oper_state(iface1), NET_IF_OPER_UP,
+		      "Wrong operational state");
+
+	/* Carrier ON, Dormant ON - interface should remain down */
+	test_iface_init(iface1, true, true);
+	zassert_false(net_if_is_up(iface1), "Interface should be down");
+	zassert_equal(net_if_oper_state(iface1), NET_IF_OPER_DORMANT,
+		      "Wrong operational state");
+
+	/* Dormant OFF transition - interface should go up */
+	net_if_dormant_off(iface1);
+	zassert_true(net_if_is_up(iface1), "Interface should be up");
+	zassert_equal(net_if_oper_state(iface1), NET_IF_OPER_UP,
+		      "Wrong operational state");
+
+	/* Carrier ON, Dormant OFF - interface should go up right away */
+	test_iface_init(iface1, true, false);
+	zassert_true(net_if_is_up(iface1), "Interface should be up");
+	zassert_equal(net_if_oper_state(iface1), NET_IF_OPER_UP,
+		      "Wrong operational state");
+
+	/* Carrier OFF transition - interface should go down */
+	net_if_carrier_off(iface1);
+	zassert_false(net_if_is_up(iface1), "Interface should be down");
+	zassert_equal(net_if_oper_state(iface1), NET_IF_OPER_DOWN,
+		      "Wrong operational state");
+
+	/* Carrier ON, Dormant OFF - interface should go up right away */
+	test_iface_init(iface1, true, false);
+	zassert_true(net_if_is_up(iface1), "Interface should be up");
+	zassert_equal(net_if_oper_state(iface1), NET_IF_OPER_UP,
+		      "Wrong operational state");
+
+	/* Dormant ON transition - interface should go down */
+	net_if_dormant_on(iface1);
+	zassert_false(net_if_is_up(iface1), "Interface should be down");
+	zassert_equal(net_if_oper_state(iface1), NET_IF_OPER_DORMANT,
+		      "Wrong operational state");
+
+	/* Carrier ON, Dormant OFF - interface should go up right away */
+	test_iface_init(iface1, true, false);
+	zassert_true(net_if_is_up(iface1), "Interface should be up");
+	zassert_equal(net_if_oper_state(iface1), NET_IF_OPER_UP,
+		      "Wrong operational state");
+
+	/* Admin down transition - interface should go down */
+	net_if_down(iface1);
+	zassert_false(net_if_is_up(iface1), "Interface should be down");
+	zassert_equal(net_if_oper_state(iface1), NET_IF_OPER_DOWN,
+		      "Wrong operational state");
+
+	/* Bring the interface back up */
+	net_if_up(iface1);
+	zassert_true(net_if_is_up(iface1), "Interface should be up");
 }
 
 static bool send_iface(struct net_if *iface, int val, bool expect_fail)
@@ -799,6 +879,60 @@ ZTEST(net_iface, test_v6_addr_add_rm)
 	v6_addr_rm();
 }
 
+ZTEST(net_iface, test_v6_addr_add_rm_solicited)
+{
+	const struct in6_addr prefix = { { { 0x20, 0x01, 0x1b, 0x98, 0x24, 0xb8, 0x7e, 0xbb,
+					     0, 0, 0, 0, 0, 0, 0, 0 } } };
+	struct in6_addr iid_addr = { };
+	struct in6_addr iid_addr_mcast = { };
+	struct in6_addr unicast_addr = { };
+	struct in6_addr unicast_addr_mcast = { };
+	struct net_if_addr *ifaddr;
+	struct net_if_mcast_addr *maddr;
+	bool ret;
+
+	/* Add a link-local address based on the interface identifier */
+	net_ipv6_addr_create_iid(&iid_addr, net_if_get_link_addr(iface4));
+	ifaddr = net_if_ipv6_addr_add(iface4, &iid_addr,
+				      NET_ADDR_AUTOCONF, 0);
+	zassert_not_null(ifaddr, "Cannot add IPv6 link-local address");
+
+	/* Add the corresponding solicited-node multicast address */
+	net_ipv6_addr_create_solicited_node(&iid_addr, &iid_addr_mcast);
+	maddr = net_if_ipv6_maddr_add(iface4, &iid_addr_mcast);
+	zassert_not_null(maddr, "Cannot add solicited-node multicast address");
+
+	/* Add an autoconfigured global unicast address */
+	net_ipv6_addr_create_iid(&unicast_addr, net_if_get_link_addr(iface4));
+	memcpy(&unicast_addr, &prefix, sizeof(prefix) / 2);
+	ifaddr = net_if_ipv6_addr_add(iface4, &unicast_addr,
+				      NET_ADDR_AUTOCONF, 0);
+	zassert_not_null(ifaddr, "Cannot add IPv6 global unicast address");
+
+	/* Add the corresponding solicited-node multicast address (should exist) */
+	net_ipv6_addr_create_solicited_node(&unicast_addr, &unicast_addr_mcast);
+	zassert_mem_equal(&unicast_addr_mcast, &iid_addr_mcast,
+			  sizeof(struct in6_addr));
+	maddr = net_if_ipv6_maddr_add(iface4, &unicast_addr_mcast);
+	zassert_is_null(maddr, "Solicited-node multicast address was added twice");
+
+	/* Remove the global unicast address */
+	ret = net_if_ipv6_addr_rm(iface4, &unicast_addr);
+	zassert_true(ret, "Cannot remove IPv6 global unicast address");
+
+	/* The solicited-node multicast address should stay */
+	maddr = net_if_ipv6_maddr_lookup(&iid_addr_mcast, &iface4);
+	zassert_not_null(maddr, "Solicited-node multicast address was removed");
+
+	/* Remove the link-local address */
+	ret = net_if_ipv6_addr_rm(iface4, &iid_addr);
+	zassert_true(ret, "Cannot remove IPv6 link-local address");
+
+	/* The solicited-node multicast address should be gone */
+	maddr = net_if_ipv6_maddr_lookup(&iid_addr_mcast, &iface4);
+	zassert_is_null(maddr, "Solicited-node multicast address was not removed");
+}
+
 #define MY_ADDR_V6_USER { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, \
 			      0, 0, 0, 0, 0, 0, 0, 0x65 } } }
 
@@ -933,6 +1067,68 @@ static void get_by_index_from_userspace(void)
 ZTEST(net_iface, test_get_by_index_from_userspace)
 {
 	get_by_index_from_userspace();
+}
+
+static void foreach_ipv4_addr_check(struct net_if *iface,
+				    struct net_if_addr *if_addr,
+				    void *user_data)
+{
+	int *count = (int *)user_data;
+
+	(*count)++;
+
+	zassert_equal_ptr(iface, iface1, "Callback called on wrong interface");
+	zassert_mem_equal(&if_addr->address.in_addr, &my_ipv4_addr1,
+			  sizeof(struct in_addr), "Wrong IPv4 address");
+}
+
+ZTEST(net_iface, test_ipv4_addr_foreach)
+{
+	int count = 0;
+
+	/* iface1 has one IPv4 address configured */
+	net_if_ipv4_addr_foreach(iface1, foreach_ipv4_addr_check, &count);
+	zassert_equal(count, 1, "Incorrect number of callback calls");
+
+	count = 0;
+
+	/* iface4 has no IPv4 address configured */
+	net_if_ipv4_addr_foreach(iface4, foreach_ipv4_addr_check, &count);
+	zassert_equal(count, 0, "Incorrect number of callback calls");
+}
+
+static void foreach_ipv6_addr_check(struct net_if *iface,
+				    struct net_if_addr *if_addr,
+				    void *user_data)
+{
+	int *count = (int *)user_data;
+
+	(*count)++;
+
+	zassert_equal_ptr(iface, iface1, "Callback called on wrong interface");
+
+	if (net_ipv6_is_ll_addr(&if_addr->address.in6_addr)) {
+		zassert_mem_equal(&if_addr->address.in6_addr, &ll_addr,
+				  sizeof(struct in6_addr), "Wrong IPv6 address");
+	} else {
+		zassert_mem_equal(&if_addr->address.in6_addr, &my_addr1,
+				  sizeof(struct in6_addr), "Wrong IPv6 address");
+	}
+}
+
+ZTEST(net_iface, test_ipv6_addr_foreach)
+{
+	int count = 0;
+
+	/* iface1 has two IPv6 addresses configured */
+	net_if_ipv6_addr_foreach(iface1, foreach_ipv6_addr_check, &count);
+	zassert_equal(count, 2, "Incorrect number of callback calls");
+
+	count = 0;
+
+	/* iface4 has no IPv6 address configured */
+	net_if_ipv6_addr_foreach(iface4, foreach_ipv6_addr_check, &count);
+	zassert_equal(count, 0, "Incorrect number of callback calls");
 }
 
 ZTEST_SUITE(net_iface, NULL, iface_setup, NULL, NULL, iface_teardown);

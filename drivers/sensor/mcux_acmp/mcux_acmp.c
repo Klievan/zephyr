@@ -11,8 +11,10 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/mcux_acmp.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/kernel.h>
 #include <fsl_acmp.h>
 #include <zephyr/drivers/pinctrl.h>
+#include <zephyr/irq.h>
 
 LOG_MODULE_REGISTER(mcux_acmp, CONFIG_SENSOR_LOG_LEVEL);
 
@@ -61,8 +63,10 @@ struct mcux_acmp_data {
 #endif
 #ifdef CONFIG_MCUX_ACMP_TRIGGER
 	const struct device *dev;
-	sensor_trigger_handler_t rising;
-	sensor_trigger_handler_t falling;
+	sensor_trigger_handler_t rising_handler;
+	const struct sensor_trigger *rising_trigger;
+	sensor_trigger_handler_t falling_handler;
+	const struct sensor_trigger *falling_trigger;
 	struct k_work work;
 	volatile uint32_t status;
 #endif /* CONFIG_MCUX_ACMP_TRIGGER */
@@ -377,10 +381,12 @@ static int mcux_acmp_trigger_set(const struct device *dev,
 
 	switch ((int16_t)trig->type) {
 	case SENSOR_TRIG_MCUX_ACMP_OUTPUT_RISING:
-		data->rising = handler;
+		data->rising_handler = handler;
+		data->rising_trigger = trig;
 		break;
 	case SENSOR_TRIG_MCUX_ACMP_OUTPUT_FALLING:
-		data->falling = handler;
+		data->falling_handler = handler;
+		data->falling_trigger = trig;
 		break;
 	default:
 		return -ENOTSUP;
@@ -391,22 +397,21 @@ static int mcux_acmp_trigger_set(const struct device *dev,
 
 static void mcux_acmp_trigger_work_handler(struct k_work *item)
 {
-	static struct sensor_trigger trigger;
+	const struct sensor_trigger *trigger;
 	struct mcux_acmp_data *data =
 		CONTAINER_OF(item, struct mcux_acmp_data, work);
 	sensor_trigger_handler_t handler = NULL;
 
 	if (data->status & kACMP_OutputRisingEventFlag) {
-		trigger.type = SENSOR_TRIG_MCUX_ACMP_OUTPUT_RISING;
-		handler = data->rising;
+		handler = data->rising_handler;
+		trigger = data->rising_trigger;
 	} else if (data->status & kACMP_OutputFallingEventFlag) {
-		trigger.type = SENSOR_TRIG_MCUX_ACMP_OUTPUT_FALLING;
-		handler = data->falling;
+		handler = data->falling_handler;
+		trigger = data->falling_trigger;
 	}
 
 	if (handler) {
-		trigger.chan = SENSOR_CHAN_MCUX_ACMP_OUTPUT;
-		handler(data->dev, &trigger);
+		handler(data->dev, trigger);
 	}
 }
 
@@ -522,7 +527,7 @@ static const struct mcux_acmp_config mcux_acmp_config_##n = {		\
 									\
 	PINCTRL_DT_INST_DEFINE(n);					\
 									\
-	DEVICE_DT_INST_DEFINE(n, &mcux_acmp_init,			\
+	SENSOR_DEVICE_DT_INST_DEFINE(n, &mcux_acmp_init,		\
 			      NULL,					\
 			      &mcux_acmp_data_##n,			\
 			      &mcux_acmp_config_##n, POST_KERNEL,	\

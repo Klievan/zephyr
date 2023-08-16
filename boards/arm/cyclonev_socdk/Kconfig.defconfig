@@ -21,9 +21,13 @@ config USB_DEVICE_DRIVER
 	default y
 endif # USB_DEVICE_STACK
 
-if SPI_DW
-config SPI_DW_FIFO_DEPTH
-	default 256
-endif # SPI_DW
+if NETWORKING
+
+config NET_L2_ETHERNET
+	default y
+config TEST_RANDOM_GENERATOR
+	default y
+
+endif # NETWORKING
 
 endif # BOARD_CVSXDEVKIT

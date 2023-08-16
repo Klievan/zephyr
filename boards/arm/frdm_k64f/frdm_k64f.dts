@@ -4,6 +4,7 @@
 
 #include <nxp/nxp_k6x.dtsi>
 #include "frdm_k64f-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "NXP Freedom MK64F board";
@@ -50,10 +51,12 @@
 		user_button_2: button_0 {
 			label = "User SW2";
 			gpios = <&gpioc 6 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 		user_button_3: button_1 {
 			label = "User SW3";
 			gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_1>;
 		};
 	};
 
@@ -144,6 +147,24 @@ arduino_spi: &spi0 {
 	status = "okay";
 	pinctrl-0 = <&spi0_default>;
 	pinctrl-names = "default";
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpioe 4 GPIO_ACTIVE_LOW>;
+
+	sdhc0: sdhc@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		status = "okay";
+		sdmmc {
+			compatible = "zephyr,sdmmc-disk";
+			status = "okay";
+		};
+		spi-max-frequency = <24000000>;
+	};
 };
 
 &ftm0 {

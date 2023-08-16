@@ -7,6 +7,7 @@
 #include <zephyr/sys_clock.h>
 #include <zephyr/spinlock.h>
 #include <zephyr/drivers/interrupt_controller/loapic.h>
+#include <zephyr/irq.h>
 
 #define IA32_TSC_DEADLINE_MSR 0x6e0
 #define IA32_TSC_ADJUST_MSR   0x03b
@@ -155,7 +156,7 @@ static inline void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *
 			 : "a"(*eax), "c"(*ecx));
 }
 
-static int sys_clock_driver_init(const struct device *dev)
+static int sys_clock_driver_init(void)
 {
 #ifdef CONFIG_ASSERT
 	uint32_t eax, ebx, ecx, edx;

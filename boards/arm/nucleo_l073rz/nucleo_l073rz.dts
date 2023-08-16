@@ -8,6 +8,8 @@
 #include <st/l0/stm32l073Xz.dtsi>
 #include <st/l0/stm32l073r(b-z)tx-pinctrl.dtsi>
 #include "arduino_r3_connector.dtsi"
+#include "st_morpho_connector.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "STMicroelectronics STM32L073RZ-NUCLEO board";
@@ -18,7 +20,6 @@
 		zephyr,shell-uart = &usart2;
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
-		zephyr,entropy = &rng;
 	};
 
 	leds {
@@ -34,14 +35,7 @@
 		user_button: button {
 			label = "User";
 			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
-		};
-	};
-
-	power-states {
-		stop: state {
-			compatible = "zephyr,power-state";
-			power-state-name = "suspend-to-idle";
-			min-residency-us = <100>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
 
@@ -60,11 +54,10 @@
 		sw0 = &user_button;
 		pwm-led0 = &green_pwm_led;
 		watchdog0 = &iwdg;
+		eeprom-0 = &eeprom;
+		die-temp0 = &die_temp;
+		volt-sensor0 = &vref;
 	};
-};
-
-&cpu0 {
-	cpu-power-states = <&stop>;
 };
 
 &clk_hse {
@@ -74,6 +67,10 @@
 };
 
 &clk_lsi {
+	status = "okay";
+};
+
+&clk_hsi48 {
 	status = "okay";
 };
 
@@ -95,6 +92,7 @@
 &lptim1 {
 	clocks = <&rcc STM32_CLOCK_BUS_APB1 0x80000000>,
 		<&rcc STM32_SRC_LSI LPTIM1_SEL(1)>;
+	status = "okay";
 };
 
 &usart1 {
@@ -112,6 +110,13 @@
 
 &i2c1 {
 	pinctrl-0 = <&i2c1_scl_pb8 &i2c1_sda_pb9>;
+	pinctrl-names = "default";
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+};
+
+&i2c2 {
+	pinctrl-0 = <&i2c2_scl_pb10 &i2c2_sda_pb11>;
 	pinctrl-names = "default";
 	status = "okay";
 	clock-frequency = <I2C_BITRATE_FAST>;
@@ -155,5 +160,13 @@
 };
 
 &rng {
+	status = "okay";
+};
+
+&eeprom {
+	status = "okay";
+};
+
+&vref {
 	status = "okay";
 };

@@ -8,6 +8,7 @@
 #include <zephyr/toolchain.h>
 #include <zephyr/linker/sections.h>
 #include <zephyr/arch/cpu.h>
+#include <offsets.h>
 #include "asm_macros.inc"
 
 /* exports */
@@ -38,14 +39,9 @@ SECTION_FUNC(reset, __reset)
  */
 SECTION_FUNC(TEXT, __initialize)
 	csrr a0, mhartid
-	beqz a0, boot_first_core
-
-	li t0, CONFIG_MP_NUM_CPUS
-	blt a0, t0, boot_secondary_core
-
-loop_unconfigured_cores:
-	wfi
-	j loop_unconfigured_cores
+	li t0, CONFIG_RV_BOOT_HART
+	beq a0, t0, boot_first_core
+	j boot_secondary_core
 
 boot_first_core:
 
@@ -66,7 +62,7 @@ boot_first_core:
 #ifdef CONFIG_INIT_STACKS
 	/* Pre-populate all bytes in z_interrupt_stacks with 0xAA */
 	la t0, z_interrupt_stacks
-	li t1, CONFIG_ISR_STACK_SIZE
+	li t1, __z_interrupt_stack_SIZEOF
 	add t1, t1, t0
 
 	/* Populate z_interrupt_stacks with 0xaaaaaaaa */
@@ -79,10 +75,10 @@ aa_loop:
 
 	/*
 	 * Initially, setup stack pointer to
-	 * z_interrupt_stacks + CONFIG_ISR_STACK_SIZE
+	 * z_interrupt_stacks + __z_interrupt_stack_SIZEOF
 	 */
 	la sp, z_interrupt_stacks
-	li t0, CONFIG_ISR_STACK_SIZE
+	li t0, __z_interrupt_stack_SIZEOF
 	add sp, sp, t0
 
 #ifdef CONFIG_WDOG_INIT
@@ -96,6 +92,7 @@ aa_loop:
 	call _PrepC
 
 boot_secondary_core:
+#if CONFIG_MP_MAX_NUM_CPUS > 1
 	la t0, riscv_cpu_wake_flag
 	lr t0, 0(t0)
 	bne a0, t0, boot_secondary_core
@@ -107,3 +104,10 @@ boot_secondary_core:
 	la t0, riscv_cpu_wake_flag
 	sr zero, 0(t0)
 	j z_riscv_secondary_cpu_init
+#else
+	j loop_unconfigured_cores
+#endif
+
+loop_unconfigured_cores:
+	wfi
+	j loop_unconfigured_cores

@@ -20,7 +20,7 @@
 #define STACK_SIZE	((LENGTH * sizeof(int) + 1024))
 
 #ifdef CONFIG_SMP
-#define CORES_NUM	CONFIG_MP_NUM_CPUS
+#define CORES_NUM	arch_num_cpus()
 #else
 #define CORES_NUM	1
 #endif
@@ -77,7 +77,7 @@ void test_thread(void *arg1, void *arg2, void *arg3)
 	atomic_dec(counter);
 }
 
-void main(void)
+int main(void)
 {
 	uint32_t start_time, stop_time, cycles_spent, nanoseconds_spent;
 	int i;
@@ -112,4 +112,5 @@ void main(void)
 
 	printk("All %d threads executed by %d cores in %d msec\n", THREADS_NUM,
 	       CORES_NUM, nanoseconds_spent / 1000 / 1000);
+	return 0;
 }

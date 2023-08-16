@@ -27,7 +27,7 @@ struct region_map {
 		.region = {								\
 			.addr = (uintptr_t) DT_INST_REG_ADDR(n),			\
 			.size = DT_INST_REG_SIZE(n),					\
-			.attr = DT_INST_ENUM_IDX_OR(n, zephyr_memory_region_mpu,	\
+			.attr = DT_INST_ENUM_IDX_OR(n, zephyr_memory_attr,		\
 						    SMH_REG_ATTR_NUM),			\
 		},									\
 	},
@@ -66,7 +66,7 @@ static struct region_map *get_region_map(void *v_addr)
 	return NULL;
 }
 
-static inline enum smh_reg_attr mpu_to_reg_attr(int mpu_attr)
+static inline enum shared_multi_heap_attr mpu_to_reg_attr(int mpu_attr)
 {
 	/*
 	 * All the memory regions defined in the DT with the MPU property `RAM`
@@ -103,7 +103,7 @@ static void fill_multi_heap(void)
 	for (size_t idx = 0; idx < DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT); idx++) {
 		reg_map = &map[idx];
 
-		/* zephyr,memory-region-mpu property not found. Skip it. */
+		/* zephyr,memory-attr property not found. Skip it. */
 		if (reg_map->region.attr == SMH_REG_ATTR_NUM) {
 			continue;
 		}
@@ -120,8 +120,8 @@ static void fill_multi_heap(void)
 		 * address retrieved by DT at run-time because the SMH
 		 * framework expects virtual addresses.
 		 *
-		 * For MPU-enabled plaform the code is assuming that the region
-		 * are configured at build-time, so no map is needed.
+		 * For MPU-enabled platform the code is assuming that the
+		 * region are configured at build-time, so no map is needed.
 		 */
 		smh_reg_map(&reg_map->region);
 #endif /* CONFIG_MMU */

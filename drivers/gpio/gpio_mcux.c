@@ -11,11 +11,11 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/dt-bindings/gpio/nxp-kinetis-gpio.h>
+#include <zephyr/irq.h>
 #include <soc.h>
 #include <fsl_common.h>
-#include <fsl_port.h>
 
-#include "gpio_utils.h"
+#include <zephyr/drivers/gpio/gpio_utils.h>
 
 struct gpio_mcux_config {
 	/* gpio_driver_config needs to be first */
@@ -79,7 +79,12 @@ static int gpio_mcux_configure(const struct device *dev,
 
 	/* Set PCR mux to GPIO for the pin we are configuring */
 	mask |= PORT_PCR_MUX_MASK;
-	pcr |= PORT_PCR_MUX(kPORT_MuxAsGpio);
+	pcr |= PORT_PCR_MUX(PORT_MUX_GPIO);
+
+#if defined(FSL_FEATURE_PORT_HAS_INPUT_BUFFER) && FSL_FEATURE_PORT_HAS_INPUT_BUFFER
+	/* Enable digital input buffer */
+	pcr |= PORT_PCR_IBE_MASK;
+#endif
 
 	/* Now do the PORT module. Figure out the pullup/pulldown
 	 * configuration, but don't write it to the PCR register yet.

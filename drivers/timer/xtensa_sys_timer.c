@@ -7,6 +7,7 @@
 #include <zephyr/drivers/timer/system_timer.h>
 #include <zephyr/sys_clock.h>
 #include <zephyr/spinlock.h>
+#include <zephyr/irq.h>
 
 #define TIMER_IRQ UTIL_CAT(XCHAL_TIMER,		\
 			   UTIL_CAT(CONFIG_XTENSA_TIMER_ID, _INTERRUPT))
@@ -119,9 +120,8 @@ void smp_timer_init(void)
 }
 #endif
 
-static int sys_clock_driver_init(const struct device *dev)
+static int sys_clock_driver_init(void)
 {
-	ARG_UNUSED(dev);
 
 	IRQ_CONNECT(TIMER_IRQ, 0, ccompare_isr, 0, 0);
 	set_ccompare(ccount() + CYC_PER_TICK);

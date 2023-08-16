@@ -16,7 +16,7 @@ LOG_MODULE_REGISTER(net_txtime_sample, LOG_LEVEL_DBG);
 
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/net_event.h>
-#include <zephyr/net/net_conn_mgr.h>
+#include <zephyr/net/conn_mgr.h>
 
 #include <zephyr/net/socket.h>
 #include <zephyr/net/ethernet.h>
@@ -153,15 +153,14 @@ static void tx(struct app_data *data)
 		struct cmsghdr hdr;
 		unsigned char  buf[CMSG_SPACE(sizeof(uint64_t))];
 	} cmsgbuf;
-	uint64_t txtime, delay, interval;
+	net_time_t txtime, delay, interval;
 	int ret;
 	int print_offset;
 
 	print_offset = IS_ENABLED(CONFIG_NET_SAMPLE_PACKET_SOCKET) ?
 		sizeof(struct net_eth_hdr) : 0;
 
-	interval = CONFIG_NET_SAMPLE_PACKET_INTERVAL * NSEC_PER_USEC *
-							USEC_PER_MSEC;
+	interval = CONFIG_NET_SAMPLE_PACKET_INTERVAL * NSEC_PER_MSEC;
 	delay = CONFIG_NET_SAMPLE_PACKET_TXTIME * NSEC_PER_USEC;
 
 	io_vector[0].iov_base = (void *)txtime_str;
@@ -182,14 +181,14 @@ static void tx(struct app_data *data)
 	LOG_DBG("Sending network packets with SO_TXTIME");
 
 	ptp_clock_get(data->clk, &time);
-	txtime = (time.second * NSEC_PER_SEC) + time.nanosecond;
+	txtime = net_ptp_time_to_ns(&time);
 
 	snprintk(txtime_str + print_offset,
-		 sizeof(txtime_str) - print_offset, "%"PRIx64, txtime);
+		 sizeof(txtime_str) - print_offset, "%"PRIx64, (uint64_t)txtime);
 	io_vector[0].iov_len = sizeof(txtime_str);
 
 	while (1) {
-		*(uint64_t *)CMSG_DATA(cmsg) = txtime + delay;
+		*(net_time_t *)CMSG_DATA(cmsg) = txtime + delay;
 
 		ret = sendmsg(data->sock, &msg, 0);
 		if (ret < 0) {
@@ -202,7 +201,7 @@ static void tx(struct app_data *data)
 
 		txtime += interval;
 		snprintk(txtime_str + print_offset,
-			 sizeof(txtime_str) - print_offset, "%"PRIx64, txtime);
+			 sizeof(txtime_str) - print_offset, "%"PRIx64, (uint64_t)txtime);
 
 		k_sleep(K_NSEC(interval));
 	}
@@ -490,14 +489,14 @@ static void set_qbv_params(struct net_if *iface)
 	}
 }
 
-static int cmd_sample_quit(const struct shell *shell,
+static int cmd_sample_quit(const struct shell *sh,
 			  size_t argc, char *argv[])
 {
 	want_to_quit = true;
 
 	quit();
 
-	net_conn_mgr_resend_status();
+	conn_mgr_resend_status();
 
 	return 0;
 }
@@ -512,7 +511,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sample_commands,
 SHELL_CMD_REGISTER(sample, &sample_commands,
 		   "Sample application commands", NULL);
 
-void main(void)
+int main(void)
 {
 	struct net_if *iface = NULL;
 	char addr_str[INET6_ADDRSTRLEN];
@@ -535,7 +534,7 @@ void main(void)
 			net_mgmt_add_event_callback(&dhcpv4_cb);
 		}
 
-		net_conn_mgr_resend_status();
+		conn_mgr_resend_status();
 	}
 
 	/* The VLAN in this example is created for demonstration purposes.
@@ -553,7 +552,7 @@ void main(void)
 	if (IS_ENABLED(CONFIG_NET_SAMPLE_UDP_SOCKET)) {
 		ret = get_peer_address(&iface, addr_str, sizeof(addr_str));
 		if (ret < 0) {
-			return;
+			return 0;
 		}
 	} else {
 		struct sockaddr_ll *addr = (struct sockaddr_ll *)&data.peer;
@@ -566,7 +565,7 @@ void main(void)
 
 	if (!iface) {
 		LOG_ERR("Cannot get local network interface!");
-		return;
+		return 0;
 	}
 
 	if_index = net_if_get_by_iface(iface);
@@ -574,19 +573,19 @@ void main(void)
 	caps = net_eth_get_hw_capabilities(iface);
 	if (!(caps & ETHERNET_PTP)) {
 		LOG_ERR("Interface %p does not support %s", iface, "PTP");
-		return;
+		return 0;
 	}
 
 	if (!(caps & ETHERNET_TXTIME)) {
 		LOG_ERR("Interface %p does not support %s", iface, "TXTIME");
-		return;
+		return 0;
 	}
 
 	data.clk = net_eth_get_ptp_clock_by_index(if_index);
 	if (!data.clk) {
 		LOG_ERR("Interface %p does not support %s", iface,
 			"PTP clock");
-		return;
+		return 0;
 	}
 
 	/* Make sure the queues are enabled */
@@ -616,7 +615,7 @@ void main(void)
 	data.sock = create_socket(iface, &data.peer);
 	if (data.sock < 0) {
 		LOG_ERR("Cannot create socket (%d)", data.sock);
-		return;
+		return 0;
 	}
 
 	tx_tid = k_thread_create(&tx_thread, tx_stack,
@@ -626,7 +625,7 @@ void main(void)
 				 K_FOREVER);
 	if (!tx_tid) {
 		LOG_ERR("Cannot create TX thread!");
-		return;
+		return 0;
 	}
 
 	k_thread_name_set(tx_tid, "TX");
@@ -638,7 +637,7 @@ void main(void)
 				 K_FOREVER);
 	if (!rx_tid) {
 		LOG_ERR("Cannot create RX thread!");
-		return;
+		return 0;
 	}
 
 	k_thread_name_set(rx_tid, "RX");
@@ -656,4 +655,5 @@ void main(void)
 	if (data.sock >= 0) {
 		(void)close(data.sock);
 	}
+	return 0;
 }

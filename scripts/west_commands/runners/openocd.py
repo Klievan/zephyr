@@ -20,7 +20,7 @@ from runners.core import ZephyrBinaryRunner
 DEFAULT_OPENOCD_TCL_PORT = 6333
 DEFAULT_OPENOCD_TELNET_PORT = 4444
 DEFAULT_OPENOCD_GDB_PORT = 3333
-DEFAULT_OPENOCD_RESET_HALT_CMD = 'reset halt'
+DEFAULT_OPENOCD_RESET_HALT_CMD = 'reset init'
 DEFAULT_OPENOCD_TARGET_HANDLE = "_TARGETNAME"
 
 class OpenOcdBinaryRunner(ZephyrBinaryRunner):
@@ -253,12 +253,20 @@ class OpenOcdBinaryRunner(ZephyrBinaryRunner):
             post_verify_cmd.append("-c")
             post_verify_cmd.append(i)
 
+        load_image = []
+        if not self.do_verify_only:
+            load_image = ['-c', self.reset_halt_cmd,
+                          '-c', self.load_cmd + ' ' + hex_name]
+
+        verify_image = []
+        if self.do_verify or self.do_verify_only:
+            verify_image = ['-c', self.reset_halt_cmd,
+                            '-c', self.verify_cmd + ' ' + hex_name]
+
         cmd = (self.openocd_cmd + self.serial + self.cfg_cmd +
                pre_init_cmd + self.init_arg + self.targets_arg +
-               pre_load_cmd + ['-c', self.reset_halt_cmd,
-                               '-c', self.load_cmd + ' ' + hex_name,
-                               '-c', self.reset_halt_cmd] +
-               ['-c', self.verify_cmd + ' ' + hex_name] +
+               pre_load_cmd + load_image +
+               verify_image +
                post_verify_cmd +
                ['-c', 'reset run',
                 '-c', 'shutdown'])
@@ -347,6 +355,11 @@ class OpenOcdBinaryRunner(ZephyrBinaryRunner):
         for i in self.pre_init:
             pre_init_cmd.append("-c")
             pre_init_cmd.append(i)
+
+        if self.thread_info_enabled and self.supports_thread_info():
+            pre_init_cmd.append("-c")
+            rtos_command = '${} configure -rtos Zephyr'.format(self.target_handle)
+            pre_init_cmd.append(rtos_command)
 
         cmd = (self.openocd_cmd + self.cfg_cmd +
                ['-c', 'tcl_port {}'.format(self.tcl_port),

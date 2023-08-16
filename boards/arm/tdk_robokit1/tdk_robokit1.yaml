@@ -9,6 +9,7 @@ toolchain:
   - gnuarmemb
   - xtools
 supported:
+  - dma
   - i2c
   - gpio
   - spi
@@ -16,5 +17,4 @@ supported:
   - usb_device
   - pwm
   - can
-  - canfd
   - hwinfo

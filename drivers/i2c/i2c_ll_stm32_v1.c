@@ -504,12 +504,13 @@ int i2c_stm32_target_register(const struct device *dev, struct i2c_target_config
 
 	LL_I2C_Enable(i2c);
 
-	LL_I2C_SetOwnAddress1(i2c, config->address << 1,
-			      LL_I2C_OWNADDRESS1_7BIT);
-
+	if (data->slave_cfg->flags == I2C_TARGET_FLAGS_ADDR_10_BITS)	{
+		return -ENOTSUP;
+	}
+	LL_I2C_SetOwnAddress1(i2c, config->address << 1U, LL_I2C_OWNADDRESS1_7BIT);
 	data->slave_attached = true;
 
-	LOG_DBG("i2c: slave registered");
+	LOG_DBG("i2c: target registered");
 
 	stm32_i2c_enable_transfer_interrupts(dev);
 	LL_I2C_AcknowledgeNextData(i2c, LL_I2C_ACK);
@@ -612,7 +613,7 @@ end:
 	stm32_i2c_master_mode_end(dev);
 }
 
-int32_t stm32_i2c_msg_write(const struct device *dev, struct i2c_msg *msg,
+static int32_t stm32_i2c_msg_write(const struct device *dev, struct i2c_msg *msg,
 			    uint8_t *next_msg_flags, uint16_t saddr)
 {
 	struct i2c_stm32_data *data = dev->data;
@@ -631,7 +632,7 @@ int32_t stm32_i2c_msg_write(const struct device *dev, struct i2c_msg *msg,
 	return msg_end(dev, next_msg_flags, __func__);
 }
 
-int32_t stm32_i2c_msg_read(const struct device *dev, struct i2c_msg *msg,
+static int32_t stm32_i2c_msg_read(const struct device *dev, struct i2c_msg *msg,
 			   uint8_t *next_msg_flags, uint16_t saddr)
 {
 	const struct i2c_stm32_config *cfg = dev->config;
@@ -705,7 +706,7 @@ static int stm32_i2c_wait_timeout(uint16_t *timeout)
 	}
 }
 
-int32_t stm32_i2c_msg_write(const struct device *dev, struct i2c_msg *msg,
+static int32_t stm32_i2c_msg_write(const struct device *dev, struct i2c_msg *msg,
 			    uint8_t *next_msg_flags, uint16_t saddr)
 {
 	const struct i2c_stm32_config *cfg = dev->config;
@@ -803,7 +804,7 @@ end:
 	return res;
 }
 
-int32_t stm32_i2c_msg_read(const struct device *dev, struct i2c_msg *msg,
+static int32_t stm32_i2c_msg_read(const struct device *dev, struct i2c_msg *msg,
 			   uint8_t *next_msg_flags, uint16_t saddr)
 {
 	const struct i2c_stm32_config *cfg = dev->config;
@@ -984,4 +985,18 @@ int32_t stm32_i2c_configure_timing(const struct device *dev, uint32_t clock)
 	}
 
 	return 0;
+}
+
+int stm32_i2c_transaction(const struct device *dev,
+						  struct i2c_msg msg, uint8_t *next_msg_flags,
+						  uint16_t periph)
+{
+	int ret;
+
+	if ((msg.flags & I2C_MSG_RW_MASK) == I2C_MSG_WRITE) {
+		ret = stm32_i2c_msg_write(dev, &msg, next_msg_flags, periph);
+	} else {
+		ret = stm32_i2c_msg_read(dev, &msg, next_msg_flags, periph);
+	}
+	return ret;
 }

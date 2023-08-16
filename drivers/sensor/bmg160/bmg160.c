@@ -134,7 +134,9 @@ static int bmg160_attr_set(const struct device *dev, enum sensor_channel chan,
 			   const struct sensor_value *val)
 {
 	struct bmg160_device_data *bmg160 = dev->data;
+#ifdef CONFIG_BMG160_TRIGGER
 	const struct bmg160_device_config *config = dev->config;
+#endif
 	int idx;
 	uint16_t range_dps;
 
@@ -348,7 +350,7 @@ int bmg160_init(const struct device *dev)
 												\
 	};											\
 												\
-	DEVICE_DT_INST_DEFINE(inst, bmg160_init, NULL,						\
+	SENSOR_DEVICE_DT_INST_DEFINE(inst, bmg160_init, NULL,					\
 			      &bmg160_data_##inst, &bmg160_config_##inst,			\
 			      POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY, &bmg160_api);		\
 

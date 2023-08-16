@@ -40,8 +40,8 @@ static void tstack_pop(struct k_stack *pstack)
 
 	for (int i = STACK_LEN - 1; i >= 0; i--) {
 		/**TESTPOINT: stack pop*/
-		zassert_false(k_stack_pop(pstack, &rx_data, K_NO_WAIT), NULL);
-		zassert_equal(rx_data, data[i], NULL);
+		zassert_false(k_stack_pop(pstack, &rx_data, K_NO_WAIT));
+		zassert_equal(rx_data, data[i]);
 	}
 }
 
@@ -130,13 +130,13 @@ ZTEST(stack_contexts, test_stack_thread2thread)
  */
 ZTEST_USER(stack_contexts, test_stack_user_thread2thread)
 {
-	struct k_stack *stack = k_object_alloc(K_OBJ_STACK);
+	struct k_stack *th_stack = k_object_alloc(K_OBJ_STACK);
 
-	zassert_not_null(stack, "couldn't allocate stack object");
-	zassert_false(k_stack_alloc_init(stack, STACK_LEN),
+	zassert_not_null(th_stack, "couldn't allocate stack object");
+	zassert_false(k_stack_alloc_init(th_stack, STACK_LEN),
 		      "stack init failed");
 
-	tstack_thread_thread(stack);
+	tstack_thread_thread(th_stack);
 }
 #endif
 

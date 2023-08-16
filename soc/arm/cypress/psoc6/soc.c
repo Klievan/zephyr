@@ -8,6 +8,7 @@
 #include <zephyr/init.h>
 #include <zephyr/arch/cpu.h>
 #include <zephyr/arch/arm/aarch32/cortex_m/cmsis.h>
+#include <zephyr/irq.h>
 
 #include "cy_syslib.h"
 #include "cy_gpio.h"
@@ -382,9 +383,8 @@ void Cy_SystemInit(void)
 #endif
 }
 
-static int init_cycfg_platform_wraper(const struct device *arg)
+static int init_cycfg_platform_wraper(void)
 {
-	ARG_UNUSED(arg);
 	SystemInit();
 	return 0;
 }

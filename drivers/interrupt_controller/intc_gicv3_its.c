@@ -10,6 +10,7 @@ LOG_MODULE_REGISTER(intc_gicv3_its, LOG_LEVEL_ERR);
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/interrupt_controller/gicv3_its.h>
+#include <zephyr/sys/barrier.h>
 
 #include "intc_gic_common_priv.h"
 #include "intc_gicv3_priv.h"
@@ -24,7 +25,7 @@ LOG_MODULE_REGISTER(intc_gicv3_its, LOG_LEVEL_ERR);
 #define GITS_BASER_NR_REGS              8
 
 /* convenient access to all redistributors base address */
-extern mem_addr_t gic_rdists[CONFIG_MP_NUM_CPUS];
+extern mem_addr_t gic_rdists[CONFIG_MP_MAX_NUM_CPUS];
 
 #define SIZE_256                        256
 #define SIZE_4K                         KB(4)
@@ -198,7 +199,8 @@ static int its_alloc_tables(struct gicv3_its_data *data)
 			page_cnt = ROUND_UP(entry_size << device_ids, page_size) / page_size;
 			break;
 		case GITS_BASER_TYPE_COLLECTION:
-			page_cnt = ROUND_UP(entry_size * CONFIG_MP_NUM_CPUS, page_size) / page_size;
+			page_cnt =
+				ROUND_UP(entry_size * CONFIG_MP_MAX_NUM_CPUS, page_size)/page_size;
 			break;
 		default:
 			continue;
@@ -301,7 +303,7 @@ static int its_post_command(struct gicv3_its_data *data, struct its_cmd_block *c
 	wr_idx = (data->cmd_write - data->cmd_base) * sizeof(*cmd);
 	rd_idx = sys_read32(data->base + GITS_CREADR);
 
-	dsb();
+	barrier_dsync_fence_full();
 
 	sys_write32(wr_idx, data->base + GITS_CWRITER);
 
@@ -530,7 +532,7 @@ static int gicv3_its_init_device_id(const struct device *dev, uint32_t device_id
 			data->indirect_dev_lvl1_table[offset] = (uintptr_t)alloc_addr |
 								MASK_SET(1, GITS_BASER_VALID);
 
-			dsb();
+			barrier_dsync_fence_full();
 		}
 	}
 
@@ -674,7 +676,7 @@ struct its_driver_api gicv3_its_api = {
 	DEVICE_DT_INST_DEFINE(n, &gicv3_its_init, NULL,			       \
 			      &gicv3_its_data##n,			       \
 			      &gicv3_its_config##n,			       \
-			      POST_KERNEL,				       \
+			      PRE_KERNEL_1,				       \
 			      CONFIG_INTC_INIT_PRIORITY,		       \
 			      &gicv3_its_api);
 

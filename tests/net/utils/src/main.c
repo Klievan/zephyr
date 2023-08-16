@@ -402,25 +402,25 @@ static bool check_net_addr(struct net_addr_test_data *data)
 	return true;
 }
 
-void test_net_addr(void)
+ZTEST(test_utils_fn, test_net_addr)
 {
 	int count, pass;
 
 	for (count = 0, pass = 0; count < ARRAY_SIZE(tests); count++) {
-		TC_START(tests[count].name);
+		TC_PRINT("Running test: %s: ", tests[count].name);
 
 		if (check_net_addr(tests[count].data)) {
-			TC_END(PASS, "passed\n");
+			TC_PRINT("passed\n");
 			pass++;
 		} else {
-			TC_END(FAIL, "failed\n");
+			TC_PRINT("failed\n");
 		}
 	}
 
 	zassert_equal(pass, ARRAY_SIZE(tests), "check_net_addr error");
 }
 
-void test_addr_parse(void)
+ZTEST(test_utils_fn, test_addr_parse)
 {
 	struct sockaddr addr;
 	bool ret;
@@ -848,11 +848,79 @@ void test_addr_parse(void)
 #endif
 }
 
-void test_main(void)
+static uint16_t calc_chksum_ref(uint16_t sum, const uint8_t *data, size_t len)
 {
-	ztest_test_suite(test_utils_fn,
-			 ztest_user_unit_test(test_net_addr),
-			 ztest_unit_test(test_addr_parse));
+	const uint8_t *end;
+	uint16_t tmp;
 
-	ztest_run_test_suite(test_utils_fn);
+	end = data + len - 1;
+
+	while (data < end) {
+		tmp = (data[0] << 8) + data[1];
+		sum += tmp;
+		if (sum < tmp) {
+			sum++;
+		}
+
+		data += 2;
+	}
+
+	if (data == end) {
+		tmp = data[0] << 8;
+		sum += tmp;
+		if (sum < tmp) {
+			sum++;
+		}
+	}
+
+	return sum;
 }
+
+#define CHECKSUM_TEST_LENGTH 1500
+
+uint8_t testdata[CHECKSUM_TEST_LENGTH];
+
+ZTEST(test_utils_fn, test_ip_checksum)
+{
+	uint16_t sum_got;
+	uint16_t sum_exp;
+
+	/* Simple test dataset */
+	for (int i = 0; i < CHECKSUM_TEST_LENGTH; i++) {
+		testdata[i] = (uint8_t)i;
+	}
+
+	for (int i = 1; i <= CHECKSUM_TEST_LENGTH; i++) {
+		sum_got = calc_chksum_ref(i ^ 0x1f13, testdata, i);
+		sum_exp = calc_chksum(i ^ 0x1f13, testdata, i);
+
+		zassert_equal(sum_got, sum_exp,
+			      "Mismatch between reference and calculated checksum 1\n");
+	}
+
+	/* Create a different patten in the data */
+	for (int i = 0; i < CHECKSUM_TEST_LENGTH; i++) {
+		testdata[i] = (uint8_t)(i + 13) * 17;
+	}
+
+	for (int i = 1; i <= CHECKSUM_TEST_LENGTH; i++) {
+		sum_got = calc_chksum_ref(i ^ 0x1f13, testdata + (CHECKSUM_TEST_LENGTH - i), i);
+		sum_exp = calc_chksum(i ^ 0x1f13, testdata + (CHECKSUM_TEST_LENGTH - i), i);
+
+		zassert_equal(sum_got, sum_exp,
+			      "Mismatch between reference and calculated checksum 2\n");
+	}
+
+	/* Work across all possible combination so offset and length */
+	for (int offset = 0; offset < 7; offset++) {
+		for (int length = 1; length < 32; length++) {
+			sum_got = calc_chksum_ref(offset ^ 0x8e72, testdata + offset, length);
+			sum_exp = calc_chksum(offset ^ 0x8e72, testdata + offset, length);
+
+			zassert_equal(sum_got, sum_exp,
+				      "Mismatch between reference and calculated checksum 3\n");
+		}
+	}
+}
+
+ZTEST_SUITE(test_utils_fn, NULL, NULL, NULL, NULL, NULL);

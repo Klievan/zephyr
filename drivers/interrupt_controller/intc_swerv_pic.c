@@ -14,6 +14,7 @@
 #include <zephyr/arch/cpu.h>
 #include <zephyr/init.h>
 #include <zephyr/sw_isr_table.h>
+#include <zephyr/irq.h>
 
 #define SWERV_PIC_MAX_NUM	CONFIG_NUM_IRQS
 #define SWERV_PIC_MAX_ID	(SWERV_PIC_MAX_NUM + RISCV_MAX_GENERIC_IRQ)
@@ -142,9 +143,8 @@ static void swerv_pic_irq_handler(const void *arg)
 	swerv_pic_write(SWERV_PIC_meigwclr(irq), 0);
 }
 
-static int swerv_pic_init(const struct device *dev)
+static int swerv_pic_init(void)
 {
-	ARG_UNUSED(dev);
 	int i;
 
 	/* Init priority order to 0, 0=lowest to 15=highest */

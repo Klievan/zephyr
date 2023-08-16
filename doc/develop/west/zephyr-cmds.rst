@@ -119,7 +119,7 @@ source files that are compiled to generate the built library files.
 ``west spdx`` accepts these additional options:
 
 - ``-n PREFIX``: a prefix for the Document Namespaces that will be included in
-  the generated SPDX documents. See `SPDX specification 2.2 section 2.5`_ for
+  the generated SPDX documents. See `SPDX specification clause 6`_ for
   details. If ``-n`` is omitted, a default namespace will be generated
   according to the default format described in section 2.5 using a random UUID.
 
@@ -137,8 +137,8 @@ source files that are compiled to generate the built library files.
 - ``--include-sdk``: with ``--analyze-includes``, also create a fourth SPDX
   document, :file:`sdk.spdx`, which lists header files included from the SDK.
 
-.. _SPDX specification 2.2 section 2.5:
-   https://spdx.github.io/spdx-spec/2-document-creation-information/
+.. _SPDX specification clause 6:
+   https://spdx.github.io/spdx-spec/v2.2.2/document-creation-information/
 
 .. _west-blobs:
 
@@ -174,3 +174,14 @@ As does deleting them::
 Additionally the tool allows you to specify the modules you want to list,
 fetch or clean blobs for by typing the module names as a command-line
 parameter.
+
+.. _west-twister:
+
+Twister wrapper: ``west twister``
+*********************************
+This command is a wrapper for :ref:`twister <twister_script>`.
+
+Twister can then be invoked via west as follows::
+
+  west twister -help
+  west twister -T tests/ztest/base

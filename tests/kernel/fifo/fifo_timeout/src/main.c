@@ -8,6 +8,8 @@
 #include <zephyr/irq_offload.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(test);
 
 /*
  * @file
@@ -87,7 +89,7 @@ static void *get_scratch_packet(void)
 {
 	void *packet = k_fifo_get(&scratch_fifo_packets_fifo, K_NO_WAIT);
 
-	zassert_true(packet != NULL, NULL);
+	zassert_true(packet != NULL);
 	return packet;
 }
 
@@ -127,8 +129,8 @@ static void test_thread_pend_and_timeout(void *p1, void *p2, void *p3)
 
 	start_time = k_cycle_get_32();
 	packet = k_fifo_get(d->fifo, K_MSEC(d->timeout));
-	zassert_true(packet == NULL, NULL);
-	zassert_true(is_timeout_in_range(start_time, d->timeout), NULL);
+	zassert_true(packet == NULL);
+	zassert_true(is_timeout_in_range(start_time, d->timeout));
 
 	k_fifo_put(&timeout_order_fifo, d);
 }
@@ -160,7 +162,7 @@ static int test_multiple_threads_pending(struct timeout_order_data *test_data,
 
 		zassert_not_null(data, NULL);
 		if (data->timeout_order == ii) {
-			TC_PRINT(" thread (q order: %d, t/o: %d, fifo %p)\n",
+			LOG_DBG(" thread (q order: %d, t/o: %d, fifo %p)",
 				data->q_order, data->timeout, data->fifo);
 		} else {
 			/* Get the index of the thread which should have
@@ -179,13 +181,13 @@ static int test_multiple_threads_pending(struct timeout_order_data *test_data,
 			}
 
 			if (k_ms_to_ticks_ceil32(diff_ms) == 1) {
-				TC_PRINT(
-				" thread (q order: %d, t/o: %d, fifo %p)\n",
+				LOG_DBG(
+				" thread (q order: %d, t/o: %d, fifo %p)",
 				data->q_order, data->timeout, data->fifo);
 			} else {
 				TC_ERROR(
 				" *** thread %d woke up, expected %d\n",
-				data->timeout_order, ii);
+				data->q_order, j);
 				return TC_FAIL;
 			}
 		}
@@ -201,7 +203,7 @@ static void test_thread_pend_and_get_data(void *p1, void *p2, void *p3)
 	void *packet;
 
 	packet = k_fifo_get(d->fifo, K_MSEC(d->timeout));
-	zassert_true(packet != NULL, NULL);
+	zassert_true(packet != NULL);
 
 	put_scratch_packet(packet);
 	k_fifo_put(&timeout_order_fifo, d);
@@ -242,7 +244,7 @@ static int test_multiple_threads_get_data(struct timeout_order_data *test_data,
 		}
 
 		if (data->q_order == ii) {
-			TC_PRINT(" thread (q order: %d, t/o: %d, fifo %p)\n",
+			LOG_DBG(" thread (q order: %d, t/o: %d, fifo %p)",
 				data->q_order, data->timeout, data->fifo);
 		}
 	}
@@ -259,8 +261,8 @@ static int test_multiple_threads_get_data(struct timeout_order_data *test_data,
 		return TC_FAIL;
 	}
 
-	TC_PRINT(" thread (q order: %d, t/o: %d, fifo %p)\n",
-		 data->q_order, data->timeout, data->fifo);
+	LOG_DBG(" thread (q order: %d, t/o: %d, fifo %p)",
+		data->q_order, data->timeout, data->fifo);
 
 	return TC_PASS;
 }
@@ -306,12 +308,12 @@ ZTEST(fifo_timeout_1cpu, test_timeout_empty_fifo)
 	timeout = 10U;
 	start_time = k_cycle_get_32();
 	packet = k_fifo_get(&fifo_timeout[0], K_MSEC(timeout));
-	zassert_true(packet == NULL, NULL);
-	zassert_true(is_timeout_in_range(start_time, timeout), NULL);
+	zassert_true(packet == NULL);
+	zassert_true(is_timeout_in_range(start_time, timeout));
 
 	/* Test empty fifo with timeout of K_NO_WAIT */
 	packet = k_fifo_get(&fifo_timeout[0], K_NO_WAIT);
-	zassert_true(packet == NULL, NULL);
+	zassert_true(packet == NULL);
 }
 
 /**
@@ -326,14 +328,14 @@ ZTEST(fifo_timeout, test_timeout_non_empty_fifo)
 	scratch_packet = get_scratch_packet();
 	k_fifo_put(&fifo_timeout[0], scratch_packet);
 	packet = k_fifo_get(&fifo_timeout[0], K_NO_WAIT);
-	zassert_true(packet != NULL, NULL);
+	zassert_true(packet != NULL);
 	put_scratch_packet(scratch_packet);
 
 	 /* Test k_fifo_get with K_FOREVER */
 	scratch_packet = get_scratch_packet();
 	k_fifo_put(&fifo_timeout[0], scratch_packet);
 	packet = k_fifo_get(&fifo_timeout[0], K_FOREVER);
-	zassert_true(packet != NULL, NULL);
+	zassert_true(packet != NULL);
 	put_scratch_packet(scratch_packet);
 }
 
@@ -368,8 +370,8 @@ ZTEST(fifo_timeout_1cpu, test_timeout_fifo_thread)
 				FIFO_THREAD_PRIO, K_INHERIT_PERMS, K_NO_WAIT);
 
 	packet = k_fifo_get(&fifo_timeout[0], K_MSEC(timeout + 10));
-	zassert_true(packet != NULL, NULL);
-	zassert_true(is_timeout_in_range(start_time, timeout), NULL);
+	zassert_true(packet != NULL);
+	zassert_true(is_timeout_in_range(start_time, timeout));
 	put_scratch_packet(packet);
 
 	/*
@@ -385,8 +387,8 @@ ZTEST(fifo_timeout_1cpu, test_timeout_fifo_thread)
 
 	k_yield();
 	packet = k_fifo_get(&timeout_order_fifo, K_NO_WAIT);
-	zassert_true(packet != NULL, NULL);
-	zassert_false(reply_packet.reply, NULL);
+	zassert_true(packet != NULL);
+	zassert_false(reply_packet.reply);
 
 	/*
 	 * Test k_fifo_get with timeout of K_NO_WAIT and the fifo
@@ -404,8 +406,8 @@ ZTEST(fifo_timeout_1cpu, test_timeout_fifo_thread)
 
 	k_yield();
 	packet = k_fifo_get(&timeout_order_fifo, K_NO_WAIT);
-	zassert_true(packet != NULL, NULL);
-	zassert_true(reply_packet.reply, NULL);
+	zassert_true(packet != NULL);
+	zassert_true(reply_packet.reply);
 	put_scratch_packet(scratch_packet);
 
 	/*
@@ -423,8 +425,8 @@ ZTEST(fifo_timeout_1cpu, test_timeout_fifo_thread)
 				FIFO_THREAD_PRIO, K_INHERIT_PERMS, K_NO_WAIT);
 
 	packet = k_fifo_get(&timeout_order_fifo, K_FOREVER);
-	zassert_true(packet != NULL, NULL);
-	zassert_true(reply_packet.reply, NULL);
+	zassert_true(packet != NULL);
+	zassert_true(reply_packet.reply);
 	put_scratch_packet(scratch_packet);
 }
 
@@ -444,7 +446,7 @@ ZTEST(fifo_timeout_1cpu, test_timeout_threads_pend_on_fifo)
 	 */
 	test_data_size = ARRAY_SIZE(timeout_order_data);
 	rv = test_multiple_threads_pending(timeout_order_data, test_data_size);
-	zassert_equal(rv, TC_PASS, NULL);
+	zassert_equal(rv, TC_PASS);
 }
 
 /**
@@ -464,7 +466,7 @@ ZTEST(fifo_timeout_1cpu, test_timeout_threads_pend_on_dual_fifos)
 	test_data_size = ARRAY_SIZE(timeout_order_data_mult_fifo);
 	rv = test_multiple_threads_pending(timeout_order_data_mult_fifo,
 							test_data_size);
-	zassert_equal(rv, TC_PASS, NULL);
+	zassert_equal(rv, TC_PASS);
 
 }
 
@@ -485,7 +487,7 @@ ZTEST(fifo_timeout_1cpu, test_timeout_threads_pend_fail_on_fifo)
 	 */
 	test_data_size = ARRAY_SIZE(timeout_order_data);
 	rv = test_multiple_threads_get_data(timeout_order_data, test_data_size);
-	zassert_equal(rv, TC_PASS, NULL);
+	zassert_equal(rv, TC_PASS);
 }
 
 /**

@@ -8,20 +8,40 @@
 #include <mem.h>
 #include <infineon/xmc4xxx.dtsi>
 
-&psram1 {
-	reg = <0x10000000 DT_SIZE_K(64)>;
-};
+/ {
+	/* TODO: Add psram1 & dsram2 to MEMORY layout of linker */
+	psram1: memory@10000000 {
+		compatible = "mmio-sram";
+		reg = <0x10000000 DT_SIZE_K(64)>;
+	};
 
-&dsram1 {
-	reg = <0x20000000 DT_SIZE_K(64)>;
-};
+	dsram1: memory@20000000 {
+		compatible = "mmio-sram";
+		reg = <0x20000000 DT_SIZE_K(64)>;
+	};
 
-&dsram2 {
-	reg = <0x30000000 DT_SIZE_K(32)>;
+	dsram2: memory@30000000 {
+		compatible = "mmio-sram";
+		reg = <0x30000000 DT_SIZE_K(32)>;
+	};
 };
 
 &flash0 {
 	reg = <0xc000000 DT_SIZE_M(1)>;
+	pages_layout: pages_layout {
+		pages_layout_16k: pages_layout_16k {
+			pages-count = <8>;
+			pages-size = <DT_SIZE_K(16)>;
+		};
+		pages_layout_128k: pages_layout_128k {
+			pages-count = <1>;
+			pages-size = <DT_SIZE_K(128)>;
+		};
+		pages_layout_256k: pages_layout_256k {
+			pages-count = <3>;
+			pages-size = <DT_SIZE_K(256)>;
+		};
+	};
 };
 
 &gpio0 {
@@ -36,8 +56,17 @@
 	ngpios = <13>;
 };
 
-&soc {
+&gpio14 {
+	ngpios = <16>;
+	gpio-reserved-ranges = <10 2>;
+};
 
+&gpio15 {
+	ngpios = <16>;
+	gpio-reserved-ranges = <0 2>, <10 2>;
+};
+
+&pinctrl {
 	gpio3: gpio@48028300 {
 		compatible = "infineon,xmc4xxx-gpio";
 		gpio-controller;

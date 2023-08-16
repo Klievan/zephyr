@@ -11,6 +11,8 @@
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/irq.h>
+#include <zephyr/kernel.h>
 #include <zephyr/sys/sys_io.h>
 
 /* AXI UART Lite v2 registers offsets (See Xilinx PG142 for details) */
@@ -212,6 +214,9 @@ static int xlnx_uartlite_fifo_read(const struct device *dev, uint8_t *rx_data,
 			rx_data[count++] = xlnx_uartlite_read_rx_fifo(dev);
 		}
 		k_spin_unlock(&data->rx_lock, key);
+		if (!(status & STAT_REG_RX_FIFO_VALID_DATA)) {
+			break;
+		}
 	}
 
 	return count;

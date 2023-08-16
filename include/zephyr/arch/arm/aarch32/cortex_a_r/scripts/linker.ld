@@ -21,10 +21,16 @@
 /* physical address of RAM */
 #ifdef CONFIG_XIP
   #define ROMABLE_REGION FLASH
-  #define RAMABLE_REGION SRAM
 #else
-  #define ROMABLE_REGION SRAM
-  #define RAMABLE_REGION SRAM
+  #define ROMABLE_REGION RAM
+#endif
+#define RAMABLE_REGION RAM
+
+/* section alignment directive, valid only if not running in XIP mode */
+#ifndef CONFIG_XIP
+  #define SECTION_ALIGN ALIGN(_region_min_align)
+#else
+  #define SECTION_ALIGN
 #endif
 
 #if !defined(CONFIG_XIP) && (CONFIG_FLASH_SIZE == 0)
@@ -74,12 +80,10 @@ _region_min_align = 4;
     . = ALIGN(_region_min_align)
 #endif
 
-#define BSS_ALIGN ALIGN(_region_min_align)
-
 MEMORY
 {
     FLASH    (rx) : ORIGIN = ROM_ADDR, LENGTH = ROM_SIZE
-    SRAM     (wx) : ORIGIN = RAM_ADDR, LENGTH = RAM_SIZE
+    RAM      (wx) : ORIGIN = RAM_ADDR, LENGTH = RAM_SIZE
     LINKER_DT_REGIONS()
     /* Used by and documented in include/linker/intlist.ld */
     IDT_LIST (wx) : ORIGIN = 0xFFFFF7FF, LENGTH = 2K
@@ -134,9 +138,6 @@ SECTIONS
     {
         . = ALIGN(_region_min_align);
         __text_region_start = .;
-#ifndef CONFIG_XIP
-        z_mapped_start = .;
-#endif
 
 #include <zephyr/linker/kobject-text.ld>
 
@@ -154,7 +155,7 @@ SECTIONS
         . = ALIGN(_region_min_align);
     } GROUP_LINK_IN(ROMABLE_REGION)
 
-#if defined (CONFIG_CPLUSPLUS)
+#if defined (CONFIG_CPP)
     SECTION_PROLOGUE(.ARM.extab,,)
     {
         /*
@@ -243,14 +244,12 @@ SECTIONS
     GROUP_START(RAMABLE_REGION)
 
     . = RAM_ADDR;
-    /* Align the start of image SRAM with the
+    /* Align the start of image RAM with the
      * minimum granularity required by MPU.
      */
     . = ALIGN(_region_min_align);
     _image_ram_start = .;
-#ifdef CONFIG_XIP
     z_mapped_start = .;
-#endif
 
 /* Located in generated directory. This file is populated by the
  * zephyr_linker_sources() Cmake function.
@@ -267,35 +266,10 @@ SECTIONS
     _app_smem_rom_start = LOADADDR(_APP_SMEM_SECTION_NAME);
 #endif  /* CONFIG_USERSPACE */
 
-    SECTION_DATA_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD), BSS_ALIGN)
-    {
-        /*
-         * For performance, BSS section is assumed to be 4 byte aligned and
-         * a multiple of 4 bytes
-         */
-        . = ALIGN(4);
-        __bss_start = .;
-        __kernel_ram_start = .;
+    . = ALIGN(_region_min_align);
+    __kernel_ram_start = .;
 
-        *(.bss)
-        *(".bss.*")
-        *(COMMON)
-        *(".kernel_bss.*")
-
-#ifdef CONFIG_CODE_DATA_RELOCATION
-#include <linker_sram_bss_relocate.ld>
-#endif
-
-        /*
-         * As memory is cleared in words only, it is simpler to ensure the BSS
-         * section ends on a 4 byte boundary. This wastes a maximum of 3 bytes.
-         */
-        __bss_end = ALIGN(4);
-    } GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
-
-#include <zephyr/linker/common-noinit.ld>
-
-    SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,)
+    SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,SECTION_ALIGN)
     {
         __data_region_start = .;
         __data_start = .;
@@ -329,19 +303,34 @@ SECTIONS
 #include <snippets-data-sections.ld>
 
     __data_region_end = .;
+    . = ALIGN(_region_min_align);
 
+    SECTION_DATA_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD), SECTION_ALIGN)
+    {
+        __bss_start = .;
+
+        *(.bss)
+        *(".bss.*")
+        *(COMMON)
+        *(".kernel_bss.*")
+
+#ifdef CONFIG_CODE_DATA_RELOCATION
+#include <linker_sram_bss_relocate.ld>
+#endif
+
+        /*
+         * As memory is cleared in words only, it is simpler to ensure the BSS
+         * section ends on a 4 byte boundary. This wastes a maximum of 3 bytes.
+         */
+        __bss_end = ALIGN(4);
+    } GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
+
+#include <zephyr/linker/common-noinit.ld>
 
     /* Define linker symbols */
 
-    . = ALIGN(_region_min_align);
-    _image_ram_end = .;
-    _end = .; /* end of image */
-    z_mapped_end = .;
-
     __kernel_ram_end = RAM_ADDR + RAM_SIZE;
     __kernel_ram_size = __kernel_ram_end - __kernel_ram_start;
-
-    GROUP_END(RAMABLE_REGION)
 
 #if DT_NODE_HAS_STATUS(DT_CHOSEN(zephyr_ocm), okay)
 GROUP_START(OCM)
@@ -374,6 +363,12 @@ GROUP_END(OCM)
  */
 #include <snippets-sections.ld>
 
+#define LAST_RAM_ALIGN . = ALIGN(_region_min_align);
+
+#include <zephyr/linker/ram-end.ld>
+
+    GROUP_END(RAMABLE_REGION)
+
 #include <zephyr/linker/debug-sections.ld>
 
     SECTION_PROLOGUE(.ARM.attributes, 0,)
@@ -386,12 +381,17 @@ GROUP_END(OCM)
     LINKER_DT_SECTIONS()
 
     /* Must be last in romable region */
-    SECTION_PROLOGUE(.last_section,(NOLOAD),)
+    SECTION_PROLOGUE(.last_section,,)
     {
+#ifdef CONFIG_LINKER_LAST_SECTION_ID
+      /* Fill last section with a word to ensure location counter and actual rom
+       * region data usage match. */
+      LONG(CONFIG_LINKER_LAST_SECTION_ID_PATTERN)
+#endif
     } GROUP_LINK_IN(ROMABLE_REGION)
 
     /* To provide the image size as a const expression,
      * calculate this value here. */
-    _flash_used = LOADADDR(.last_section) - __rom_region_start;
+    _flash_used = LOADADDR(.last_section) + SIZEOF(.last_section) - __rom_region_start;
 
 }

@@ -20,12 +20,16 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_SOCKETS_LOG_LEVEL);
 
 #define TEST_STR_SMALL "test"
 
+#define MY_IPV6_ADDR "::1"
+
 #define ANY_PORT 0
 #define SERVER_PORT 4242
 #define CLIENT_PORT 9898
 
 /* On QEMU, poll() which waits takes +10ms from the requested time. */
 #define FUZZ 10
+
+#define TCP_TEARDOWN_TIMEOUT K_SECONDS(3)
 
 ZTEST(net_socket_poll, test_poll)
 {
@@ -42,14 +46,10 @@ ZTEST(net_socket_poll, test_poll)
 	ssize_t len;
 	char buf[10];
 
-	prepare_sock_udp_v6(CONFIG_NET_CONFIG_MY_IPV6_ADDR, CLIENT_PORT,
-			    &c_sock, &c_addr);
-	prepare_sock_udp_v6(CONFIG_NET_CONFIG_MY_IPV6_ADDR, SERVER_PORT,
-			    &s_sock, &s_addr);
-	prepare_sock_tcp_v6(CONFIG_NET_CONFIG_MY_IPV6_ADDR, CLIENT_PORT,
-			    &c_sock_tcp, &c_addr);
-	prepare_sock_tcp_v6(CONFIG_NET_CONFIG_MY_IPV6_ADDR, SERVER_PORT,
-			    &s_sock_tcp, &s_addr);
+	prepare_sock_udp_v6(MY_IPV6_ADDR, CLIENT_PORT, &c_sock, &c_addr);
+	prepare_sock_udp_v6(MY_IPV6_ADDR, SERVER_PORT, &s_sock, &s_addr);
+	prepare_sock_tcp_v6(MY_IPV6_ADDR, CLIENT_PORT, &c_sock_tcp, &c_addr);
+	prepare_sock_tcp_v6(MY_IPV6_ADDR, SERVER_PORT, &s_sock_tcp, &s_addr);
 
 	res = bind(s_sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
 	zassert_equal(res, 0, "bind failed");
@@ -173,6 +173,8 @@ ZTEST(net_socket_poll, test_poll)
 
 	res = close(s_sock);
 	zassert_equal(res, 0, "close failed");
+
+	k_sleep(TCP_TEARDOWN_TIMEOUT);
 }
 
 #define TEST_SNDBUF_SIZE CONFIG_NET_TCP_MAX_RECV_WINDOW_SIZE
@@ -188,10 +190,8 @@ ZTEST(net_socket_poll, test_pollout_tcp)
 	struct pollfd pollout[1];
 	char buf[TEST_SNDBUF_SIZE] = { };
 
-	prepare_sock_tcp_v6(CONFIG_NET_CONFIG_MY_IPV6_ADDR, CLIENT_PORT,
-			    &c_sock, &c_addr);
-	prepare_sock_tcp_v6(CONFIG_NET_CONFIG_MY_IPV6_ADDR, SERVER_PORT,
-			    &s_sock, &s_addr);
+	prepare_sock_tcp_v6(MY_IPV6_ADDR, CLIENT_PORT, &c_sock, &c_addr);
+	prepare_sock_tcp_v6(MY_IPV6_ADDR, SERVER_PORT, &s_sock, &s_addr);
 
 	res = bind(s_sock, (struct sockaddr *)&s_addr, sizeof(s_addr));
 	zassert_equal(res, 0, "");

@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdint.h>
-#include <zephyr/types.h>
-#include <zephyr/toolchain.h>
+#if defined(CONFIG_BT_CTLR_ISO_RX_SDU_BUFFERS) && (CONFIG_BT_CTLR_ISO_RX_SDU_BUFFERS > 0)
+#define ISOAL_BUFFER_RX_SDUS_ENABLE
+#endif /* CONFIG_BT_CTLR_ISO_RX_SDU_BUFFERS > 0 */
+
 
 /** Function return error codes */
 typedef uint8_t isoal_status_t;
@@ -19,7 +20,10 @@ typedef uint8_t isoal_status_t;
 #define ISOAL_STATUS_ERR_PDU_EMIT         ((isoal_status_t) 0x20) /* PDU emission */
 #define ISOAL_STATUS_ERR_UNSPECIFIED      ((isoal_status_t) 0x80) /* Unspecified error */
 
-#define BT_ROLE_BROADCAST (BT_CONN_ROLE_PERIPHERAL + 1)
+#define ISOAL_ROLE_CENTRAL                (BT_CONN_ROLE_CENTRAL)
+#define ISOAL_ROLE_PERIPHERAL             (BT_CONN_ROLE_PERIPHERAL)
+#define ISOAL_ROLE_BROADCAST_SOURCE       (BT_CONN_ROLE_PERIPHERAL + 1U)
+#define ISOAL_ROLE_BROADCAST_SINK         (BT_CONN_ROLE_PERIPHERAL + 2U)
 
 /** Handle to a registered ISO Sub-System sink */
 typedef uint8_t  isoal_sink_handle_t;
@@ -113,13 +117,42 @@ struct isoal_sdu_produced {
 	/** Regardless of status, we always have timing */
 	isoal_time_t            timestamp;
 	/** Sequence number of SDU */
-	isoal_sdu_cnt_t         seqn;
+	isoal_sdu_cnt_t         sn;
 	/** Contents and length can only be trusted if status is valid */
 	struct isoal_sdu_buffer contents;
 	/** Optional context to be carried from PDU at alloc-time */
 	void                    *ctx;
 };
 
+/** @brief Produced ISO SDU fragment and status information to be emitted */
+struct isoal_emitted_sdu_frag {
+	/** Produced SDU to be emitted */
+	struct isoal_sdu_produced sdu;
+	/** SDU fragment Packet Boundary flags */
+	uint8_t                   sdu_state;
+	/** Size of the SDU fragment */
+	isoal_sdu_len_t           sdu_frag_size;
+};
+
+/** @brief Produced ISO SDU and required status information to be emitted */
+struct isoal_emitted_sdu {
+	/** Size of the SDU across all fragments */
+	isoal_sdu_len_t           total_sdu_size;
+	/** Status of contents, if valid or SDU was lost.
+	 * This maps directly to the HCI ISO Data packet Packet_Status_Flag.
+	 * BT Core V5.3 : Vol 4 HCI I/F : Part G HCI Func. Spec.:
+	 * 5.4.5 HCI ISO Data packets : Table 5.2 :
+	 * Packet_Status_Flag (in packets sent by the Controller)
+	 */
+	isoal_sdu_status_t        collated_status;
+};
+
+#if defined(ISOAL_BUFFER_RX_SDUS_ENABLE)
+struct isoal_emit_sdu_queue {
+	struct isoal_emitted_sdu_frag list[CONFIG_BT_CTLR_ISO_RX_SDU_BUFFERS];
+	uint16_t next_write_indx;
+};
+#endif /* ISOAL_BUFFER_RX_SDUS_ENABLE */
 
 /** @brief Produced ISO PDU encapsulation */
 struct isoal_pdu_produced {
@@ -157,7 +190,7 @@ struct isoal_sdu_tx {
 	/** Time stamp from HCI or vendor specific path (us) */
 	uint32_t time_stamp;
 	/** CIG Reference of target event (us, compensated for drift) */
-	uint32_t cig_ref_point;
+	uint32_t grp_ref_point;
 	/** Target Event of SDU */
 	uint64_t target_event:39;
 };
@@ -194,9 +227,11 @@ typedef isoal_status_t (*isoal_sink_sdu_alloc_cb)(
  */
 typedef isoal_status_t (*isoal_sink_sdu_emit_cb)(
 	/*!< [in]  Sink context */
-	const struct isoal_sink         *sink_ctx,
-	/*!< [in]  Filled valid SDU to be pushed */
-	const struct isoal_sdu_produced *valid_sdu
+	const struct isoal_sink             *sink_ctx,
+	/*!< [in]  Emitted SDU fragment and status information */
+	const struct isoal_emitted_sdu_frag *sdu_frag,
+	/*!< [in]  Emitted SDU status information */
+	const struct isoal_emitted_sdu      *sdu
 );
 
 /**
@@ -211,26 +246,25 @@ typedef isoal_status_t (*isoal_sink_sdu_write_cb)(
 	const size_t consume_len
 );
 
-
-struct isoal_sink_config {
-	enum isoal_mode mode;
-	/* TODO add SDU and PDU max length etc. */
-};
-
 struct isoal_sink_session {
 	isoal_sink_sdu_alloc_cb  sdu_alloc;
 	isoal_sink_sdu_emit_cb   sdu_emit;
 	isoal_sink_sdu_write_cb  sdu_write;
-	struct isoal_sink_config param;
-	isoal_sdu_cnt_t          seqn;
+	isoal_sdu_cnt_t          sn;
 	uint16_t                 handle;
+	uint16_t                 iso_interval;
 	uint8_t                  pdus_per_sdu;
 	uint8_t                  framed;
-	uint32_t                 latency_unframed;
-	uint32_t                 latency_framed;
+	uint8_t                  burst_number;
+	uint32_t                 sdu_interval;
+	uint32_t                 sdu_sync_const;
 };
 
 struct isoal_sdu_production {
+#if defined(ISOAL_BUFFER_RX_SDUS_ENABLE)
+	/* Buffered SDUs */
+	struct isoal_emit_sdu_queue sdu_list;
+#endif
 	/* Permit atomic enable/disable of SDU production */
 	volatile isoal_production_mode_t  mode;
 	/* We are constructing an SDU from {<1 or =1 or >1} PDUs */
@@ -240,7 +274,10 @@ struct isoal_sdu_production {
 	/* Assumes that isoal_pdu_cnt_t is a uint64_t bit field */
 	uint64_t prev_pdu_is_end:1;
 	uint64_t prev_pdu_is_padding:1;
+	/* Indicates that only padding PDUs have been received for this SDU */
+	uint64_t only_padding:1;
 	uint64_t sdu_allocated:1;
+	uint64_t initialized:1;
 	enum {
 		ISOAL_START,
 		ISOAL_CONTINUE,
@@ -321,19 +358,18 @@ typedef isoal_status_t (*isoal_source_pdu_emit_cb)(
 	const uint16_t handle
 );
 
-struct isoal_source_config {
-	enum isoal_mode mode;
-	/* TODO add SDU and PDU max length etc. */
-};
-
 struct isoal_source_session {
 	isoal_source_pdu_alloc_cb   pdu_alloc;
 	isoal_source_pdu_write_cb   pdu_write;
 	isoal_source_pdu_emit_cb    pdu_emit;
 	isoal_source_pdu_release_cb pdu_release;
 
-	struct isoal_source_config param;
-	isoal_sdu_cnt_t            seqn;
+	isoal_sdu_cnt_t            sn;
+	uint16_t                   last_input_sn;
+	uint32_t                   last_input_time_stamp;
+	uint32_t                   tx_time_stamp;
+	uint32_t                   tx_time_offset;
+	uint32_t                   sdu_interval;
 	uint16_t                   handle;
 	uint16_t                   iso_interval;
 	uint8_t                    framed;
@@ -368,7 +404,14 @@ struct isoal_source {
 
 	/* State for PDU production */
 	struct isoal_pdu_production pdu_production;
+
+	/* Context Control */
+	uint64_t timeout_event_count:39;
+	uint64_t timeout_trigger:1;
+	uint64_t context_active:1;
 };
+
+uint32_t isoal_get_wrapped_time_us(uint32_t time_now_us, int32_t time_diff_us);
 
 isoal_status_t isoal_init(void);
 
@@ -388,8 +431,6 @@ isoal_status_t isoal_sink_create(uint16_t handle,
 				 isoal_sink_sdu_write_cb  sdu_write,
 				 isoal_sink_handle_t *hdl);
 
-struct isoal_sink_config *isoal_get_sink_param_ref(isoal_sink_handle_t hdl);
-
 void isoal_sink_enable(isoal_sink_handle_t hdl);
 
 void isoal_sink_disable(isoal_sink_handle_t hdl);
@@ -403,8 +444,9 @@ isoal_status_t isoal_rx_pdu_recombine(isoal_sink_handle_t sink_hdl,
 isoal_status_t sink_sdu_alloc_hci(const struct isoal_sink    *sink_ctx,
 				  const struct isoal_pdu_rx  *valid_pdu,
 				  struct isoal_sdu_buffer    *sdu_buffer);
-isoal_status_t sink_sdu_emit_hci(const struct isoal_sink         *sink_ctx,
-				 const struct isoal_sdu_produced *valid_sdu);
+isoal_status_t sink_sdu_emit_hci(const struct isoal_sink             *sink_ctx,
+				 const struct isoal_emitted_sdu_frag *sdu_frag,
+				 const struct isoal_emitted_sdu      *sdu);
 isoal_status_t sink_sdu_write_hci(void *dbuf,
 				  const uint8_t *pdu_payload,
 				  const size_t consume_len);
@@ -425,18 +467,26 @@ isoal_status_t isoal_source_create(uint16_t handle,
 				   isoal_source_pdu_release_cb pdu_release,
 				   isoal_source_handle_t *hdl);
 
-struct isoal_source_config *isoal_get_source_param_ref(isoal_source_handle_t hdl);
-
 void isoal_source_enable(isoal_source_handle_t hdl);
 
 void isoal_source_disable(isoal_source_handle_t hdl);
-
-struct isoal_source *isoal_source_get(isoal_source_handle_t hdl);
 
 void isoal_source_destroy(isoal_source_handle_t hdl);
 
 isoal_status_t isoal_tx_sdu_fragment(isoal_source_handle_t source_hdl,
 				     struct isoal_sdu_tx *tx_sdu);
 
+uint16_t isoal_tx_unframed_get_next_payload_number(isoal_source_handle_t source_hdl,
+						   const struct isoal_sdu_tx *tx_sdu,
+						   uint64_t *payload_number);
+
 void isoal_tx_pdu_release(isoal_source_handle_t source_hdl,
 			  struct node_tx_iso *node_tx);
+
+isoal_status_t isoal_tx_get_sync_info(isoal_source_handle_t source_hdl,
+				      uint16_t *seq,
+				      uint32_t *timestamp,
+				      uint32_t *offset);
+
+void isoal_tx_event_prepare(isoal_source_handle_t source_hdl,
+			    uint64_t event_number);

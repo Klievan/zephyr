@@ -61,6 +61,8 @@ extern "C" {
 
 #define LOG_OUTPUT_DICT 2
 
+#define LOG_OUTPUT_CUSTOM 3
+
 /**
  * @brief Prototype of the function processing output data.
  *
@@ -219,7 +221,7 @@ void log_output_timestamp_freq_set(uint32_t freq);
  *
  * @return Timestamp value in us.
  */
-uint64_t log_output_timestamp_to_us(uint32_t timestamp);
+uint64_t log_output_timestamp_to_us(log_timestamp_t timestamp);
 
 /**
  * @}

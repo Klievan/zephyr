@@ -38,7 +38,7 @@ LOG_MODULE_REGISTER(net_ctx, CONFIG_NET_CONTEXT_LOG_LEVEL);
 #include "tcp_internal.h"
 #include "net_stats.h"
 
-#if IS_ENABLED(CONFIG_NET_TCP)
+#if defined(CONFIG_NET_TCP)
 #include "tcp.h"
 #endif
 
@@ -118,10 +118,6 @@ static uint16_t find_available_port(struct net_context *context,
 
 	do {
 		local_port = sys_rand32_get() | 0x8000;
-		if (local_port <= 1023U) {
-			/* 0 - 1023 ports are reserved */
-			continue;
-		}
 	} while (check_used_port(net_context_get_proto(context),
 				 htons(local_port), addr) == -EEXIST);
 
@@ -341,6 +337,8 @@ int net_context_get(sa_family_t family, enum net_sock_type type, uint16_t proto,
 			*context = NULL;
 			return ret;
 		}
+
+		net_context_set_iface(*context, net_if_get_default());
 	}
 
 	return 0;
@@ -362,8 +360,6 @@ int net_context_unref(struct net_context *context)
 	}
 
 	k_mutex_lock(&context->lock, K_FOREVER);
-
-	net_tcp_unref(context);
 
 	if (context->conn_handler) {
 		if (IS_ENABLED(CONFIG_NET_TCP) || IS_ENABLED(CONFIG_NET_UDP) ||
@@ -761,23 +757,13 @@ int net_context_bind(struct net_context *context, const struct sockaddr *addr,
 			ll_addr->sll_ifindex;
 		net_sll_ptr(&context->local)->sll_protocol =
 			ll_addr->sll_protocol;
-		if (IS_ENABLED(CONFIG_NET_L2_IEEE802154) &&
-		    ll_addr->sll_protocol == ETH_P_IEEE802154 &&
-		    ll_addr->sll_halen > 0) {
-			if (ll_addr->sll_halen !=
-			    IEEE802154_SHORT_ADDR_LENGTH) {
-				return -EINVAL;
-			}
-			net_sll_ptr(&context->local)->sll_addr =
-				ll_addr->sll_addr;
-			net_sll_ptr(&context->local)->sll_halen =
-				ll_addr->sll_halen;
-		} else {
-			net_sll_ptr(&context->local)->sll_addr =
-				net_if_get_link_addr(iface)->addr;
-			net_sll_ptr(&context->local)->sll_halen =
-				net_if_get_link_addr(iface)->len;
-		}
+
+		net_if_lock(iface);
+		net_sll_ptr(&context->local)->sll_addr =
+			net_if_get_link_addr(iface)->addr;
+		net_sll_ptr(&context->local)->sll_halen =
+			net_if_get_link_addr(iface)->len;
+		net_if_unlock(iface);
 
 		NET_DBG("Context %p bind to type 0x%04x iface[%d] %p addr %s",
 			context, htons(net_context_get_proto(context)),
@@ -911,6 +897,15 @@ int net_context_create_ipv4_new(struct net_context *context,
 	}
 
 	net_pkt_set_ipv4_ttl(pkt, net_context_get_ipv4_ttl(context));
+#if defined(CONFIG_NET_CONTEXT_DSCP_ECN)
+	net_pkt_set_ip_dscp(pkt, net_ipv4_get_dscp(context->options.dscp_ecn));
+	net_pkt_set_ip_ecn(pkt, net_ipv4_get_ecn(context->options.dscp_ecn));
+	/* Direct priority takes precedence over DSCP */
+	if (!IS_ENABLED(CONFIG_NET_CONTEXT_PRIORITY)) {
+		net_pkt_set_priority(pkt, net_ipv4_dscp_to_priority(
+			net_ipv4_get_dscp(context->options.dscp_ecn)));
+	}
+#endif
 
 	return net_ipv4_create(pkt, src, dst);
 }
@@ -937,6 +932,15 @@ int net_context_create_ipv6_new(struct net_context *context,
 
 	net_pkt_set_ipv6_hop_limit(pkt,
 				   net_context_get_ipv6_hop_limit(context));
+#if defined(CONFIG_NET_CONTEXT_DSCP_ECN)
+	net_pkt_set_ip_dscp(pkt, net_ipv6_get_dscp(context->options.dscp_ecn));
+	net_pkt_set_ip_ecn(pkt, net_ipv6_get_ecn(context->options.dscp_ecn));
+	/* Direct priority takes precedence over DSCP */
+	if (!IS_ENABLED(CONFIG_NET_CONTEXT_PRIORITY)) {
+		net_pkt_set_priority(pkt, net_ipv6_dscp_to_priority(
+			net_ipv6_get_dscp(context->options.dscp_ecn)));
+	}
+#endif
 
 	return net_ipv6_create(pkt, src, dst);
 }
@@ -958,6 +962,11 @@ int net_context_connect(struct net_context *context,
 	NET_ASSERT(PART_OF_ARRAY(contexts, context));
 
 	k_mutex_lock(&context->lock, K_FOREVER);
+
+	if (net_context_get_state(context) == NET_CONTEXT_CONNECTING) {
+		ret = -EALREADY;
+		goto unlock;
+	}
 
 	if (!net_context_is_used(context)) {
 		ret = -EBADF;
@@ -1105,6 +1114,8 @@ int net_context_connect(struct net_context *context,
 		ret = 0;
 	} else if (IS_ENABLED(CONFIG_NET_TCP) &&
 		   net_context_get_type(context) == SOCK_STREAM) {
+		NET_ASSERT(laddr != NULL);
+
 		ret = net_tcp_connect(context, addr, laddr, rport, lport,
 				      timeout, cb, user_data);
 	} else {
@@ -1282,6 +1293,22 @@ static int get_context_sndbuf(struct net_context *context,
 #endif
 }
 
+static int get_context_dscp_ecn(struct net_context *context,
+				void *value, size_t *len)
+{
+#if defined(CONFIG_NET_CONTEXT_DSCP_ECN)
+	*((int *)value) = context->options.dscp_ecn;
+
+	if (len) {
+		*len = sizeof(int);
+	}
+
+	return 0;
+#else
+	return -ENOTSUP;
+#endif
+}
+
 /* If buf is not NULL, then use it. Otherwise read the data to be written
  * to net_pkt from msghdr.
  */
@@ -1432,9 +1459,10 @@ static void set_pkt_txtime(struct net_pkt *pkt, const struct msghdr *msghdr)
 		if (cmsg->cmsg_len == CMSG_LEN(sizeof(uint64_t)) &&
 		    cmsg->cmsg_level == SOL_SOCKET &&
 		    cmsg->cmsg_type == SCM_TXTIME) {
-			uint64_t txtime = *(uint64_t *)CMSG_DATA(cmsg);
+			struct net_ptp_time txtime =
+				ns_to_net_ptp_time(*(net_time_t *)CMSG_DATA(cmsg));
 
-			net_pkt_set_txtime(pkt, txtime);
+			net_pkt_set_timestamp(pkt, &txtime);
 			break;
 		}
 	}
@@ -1673,7 +1701,8 @@ static int context_sendto(struct net_context *context,
 		if (net_context_get_type(context) == SOCK_DGRAM) {
 			NET_ERR("Available payload buffer (%zu) is not enough for requested DGRAM (%zu)",
 				tmp_len, len);
-			return -ENOMEM;
+			ret = -ENOMEM;
+			goto fail;
 		}
 		len = tmp_len;
 	}
@@ -1755,6 +1784,21 @@ static int context_sendto(struct net_context *context,
 		net_pkt_cursor_init(pkt);
 
 		if (net_context_get_proto(context) == IPPROTO_RAW) {
+			char type = (NET_IPV6_HDR(pkt)->vtc & 0xf0);
+
+			/* Set the family to pkt if detected */
+			switch (type) {
+			case 0x60:
+				net_pkt_set_family(pkt, AF_INET6);
+				break;
+			case 0x40:
+				net_pkt_set_family(pkt, AF_INET);
+				break;
+			default:
+				/* Not IP traffic, let it go forward as it is */
+				break;
+			}
+
 			/* Pass to L2: */
 			ret = net_send_data(pkt);
 		} else {
@@ -2126,8 +2170,6 @@ int net_context_recv(struct net_context *context,
 
 #if defined(CONFIG_NET_CONTEXT_SYNC_RECV)
 	if (!K_TIMEOUT_EQ(timeout, K_NO_WAIT)) {
-		int ret;
-
 		/* Make sure we have the lock, then the
 		 * net_context_packet_received() callback will release the
 		 * semaphore when data has been received.
@@ -2136,14 +2178,11 @@ int net_context_recv(struct net_context *context,
 
 		k_mutex_unlock(&context->lock);
 
-		ret = k_sem_take(&context->recv_data_wait, timeout);
+		if (k_sem_take(&context->recv_data_wait, timeout) == -EAGAIN) {
+			ret = -ETIMEDOUT;
+		}
 
 		k_mutex_lock(&context->lock, K_FOREVER);
-
-		if (ret == -EAGAIN) {
-			ret = -ETIMEDOUT;
-			goto unlock;
-		}
 	}
 #endif /* CONFIG_NET_CONTEXT_SYNC_RECV */
 
@@ -2302,6 +2341,28 @@ static int set_context_sndbuf(struct net_context *context,
 #endif
 }
 
+static int set_context_dscp_ecn(struct net_context *context,
+				const void *value, size_t len)
+{
+#if defined(CONFIG_NET_CONTEXT_DSCP_ECN)
+	int dscp_ecn = *((int *)value);
+
+	if (len != sizeof(int)) {
+		return -EINVAL;
+	}
+
+	if ((dscp_ecn < 0) || (dscp_ecn > UINT8_MAX)) {
+		return -EINVAL;
+	}
+
+	context->options.dscp_ecn = (uint8_t)dscp_ecn;
+
+	return 0;
+#else
+	return -ENOTSUP;
+#endif
+}
+
 int net_context_set_option(struct net_context *context,
 			   enum net_context_option option,
 			   const void *value, size_t len)
@@ -2337,6 +2398,9 @@ int net_context_set_option(struct net_context *context,
 		break;
 	case NET_OPT_SNDBUF:
 		ret = set_context_sndbuf(context, value, len);
+		break;
+	case NET_OPT_DSCP_ECN:
+		ret = set_context_dscp_ecn(context, value, len);
 		break;
 	}
 
@@ -2380,6 +2444,9 @@ int net_context_get_option(struct net_context *context,
 		break;
 	case NET_OPT_SNDBUF:
 		ret = get_context_sndbuf(context, value, len);
+		break;
+	case NET_OPT_DSCP_ECN:
+		ret = get_context_dscp_ecn(context, value, len);
 		break;
 	}
 

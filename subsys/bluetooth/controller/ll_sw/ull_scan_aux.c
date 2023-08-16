@@ -18,6 +18,8 @@
 
 #include "ticker/ticker.h"
 
+#include "pdu_df.h"
+#include "lll/pdu_vendor.h"
 #include "pdu.h"
 
 #include "lll.h"
@@ -36,10 +38,10 @@
 #include "ull_scan_internal.h"
 #include "ull_sync_internal.h"
 #include "ull_sync_iso_internal.h"
+#include "ull_df_internal.h"
 
-#define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
-#define LOG_MODULE_NAME bt_ctlr_ull_scan_aux
-#include "common/log.h"
+#include <zephyr/bluetooth/hci_types.h>
+
 #include <soc.h>
 #include "hal/debug.h"
 
@@ -48,8 +50,10 @@ static inline struct ll_scan_aux_set *aux_acquire(void);
 static inline void aux_release(struct ll_scan_aux_set *aux);
 static inline uint8_t aux_handle_get(struct ll_scan_aux_set *aux);
 static inline struct ll_sync_set *sync_create_get(struct ll_scan_set *scan);
+#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC)
 static inline struct ll_sync_iso_set *
 	sync_iso_create_get(struct ll_sync_set *sync);
+#endif /* CONFIG_BT_CTLR_SYNC_PERIODIC */
 static void done_disabled_cb(void *param);
 static void flush_safe(void *param);
 static void flush(void *param);
@@ -147,6 +151,7 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 				      ull_scan_handle_get(scan);
 		break;
 
+#if defined(CONFIG_BT_CTLR_PHY_CODED)
 	case NODE_RX_TYPE_EXT_CODED_REPORT:
 		lll_aux = NULL;
 		aux = NULL;
@@ -164,6 +169,7 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		ticker_yield_handle = TICKER_ID_SCAN_BASE +
 				      ull_scan_handle_get(scan);
 		break;
+#endif /* CONFIG_BT_CTLR_PHY_CODED */
 
 	case NODE_RX_TYPE_EXT_AUX_REPORT:
 		sync_iso = NULL;
@@ -244,9 +250,11 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 			case PHY_2M:
 				rx->type = NODE_RX_TYPE_EXT_2M_REPORT;
 				break;
+#if defined(CONFIG_BT_CTLR_PHY_CODED)
 			case PHY_CODED:
 				rx->type = NODE_RX_TYPE_EXT_CODED_REPORT;
 				break;
+#endif /* CONFIG_BT_CTLR_PHY_CODED */
 			default:
 				LL_ASSERT(0);
 				return;
@@ -409,8 +417,8 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		 * Setup synchronization if address and SID match in the
 		 * Periodic Advertiser List or with the explicitly supplied.
 		 */
-		if (IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) && sync && adi &&
-		    ull_sync_setup_sid_match(scan, adi->sid)) {
+		if (IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) && aux && sync && adi &&
+		    ull_sync_setup_sid_match(scan, PDU_ADV_ADI_SID_GET(adi))) {
 			ull_sync_setup(scan, aux, rx, si);
 		}
 	}
@@ -454,10 +462,12 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 
 	/* Do not ULL schedule auxiliary PDU reception if no aux pointer
 	 * or aux pointer is zero or scannable advertising has erroneous aux
-	 * pointer being present or PHY in the aux pointer is invalid.
+	 * pointer being present or PHY in the aux pointer is invalid or unsupported.
 	 */
-	if (!aux_ptr || !aux_ptr->offs || is_scan_req ||
-	    (aux_ptr->phy > EXT_ADV_AUX_PHY_LE_CODED)) {
+	if (!aux_ptr || !PDU_ADV_AUX_PTR_OFFSET_GET(aux_ptr) || is_scan_req ||
+	    (PDU_ADV_AUX_PTR_PHY_GET(aux_ptr) > EXT_ADV_AUX_PHY_LE_CODED) ||
+		(!IS_ENABLED(CONFIG_BT_CTLR_PHY_CODED) &&
+		  PDU_ADV_AUX_PTR_PHY_GET(aux_ptr) == EXT_ADV_AUX_PHY_LE_CODED)) {
 		if (IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) && sync_lll) {
 			struct ll_sync_set *sync;
 
@@ -527,6 +537,10 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 
 	} else {
 		aux->data_len += data_len;
+
+		if (aux->data_len >= CONFIG_BT_CTLR_SCAN_DATA_LEN_MAX) {
+			goto ull_scan_aux_rx_flush;
+		}
 	}
 
 	/* In sync context we can dispatch rx immediately, in scan context we
@@ -552,7 +566,7 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 	/* Initialize the channel index and PHY for the Auxiliary PDU reception.
 	 */
 	lll_aux->chan = aux_ptr->chan_idx;
-	lll_aux->phy = BIT(aux_ptr->phy);
+	lll_aux->phy = BIT(PDU_ADV_AUX_PTR_PHY_GET(aux_ptr));
 
 	/* See if this was already scheduled from LLL. If so, store aux context
 	 * in global scan struct so we can pick it when scanned node is received
@@ -566,8 +580,7 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 			sync_lll->lll_aux = lll_aux;
 
 			/* In sync context, dispatch immediately */
-			ll_rx_put(link, rx);
-			ll_rx_sched();
+			ll_rx_put_sched(link, rx);
 		} else {
 			lll->lll_aux = lll_aux;
 		}
@@ -582,6 +595,8 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 
 	/* Switching to ULL scheduling to receive auxiliary PDUs */
 	if (!IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) || lll) {
+		LL_ASSERT(scan);
+
 		/* Do not ULL schedule if scan disable requested */
 		if (unlikely(scan->is_stop)) {
 			goto ull_scan_aux_rx_flush;
@@ -619,7 +634,7 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		lll_aux->window_size_us = OFFS_UNIT_30_US;
 	}
 
-	aux_offset_us = (uint32_t)aux_ptr->offs * lll_aux->window_size_us;
+	aux_offset_us = (uint32_t)PDU_ADV_AUX_PTR_OFFSET_GET(aux_ptr) * lll_aux->window_size_us;
 
 	/* CA field contains the clock accuracy of the advertiser;
 	 * 0 - 51 ppm to 500 ppm
@@ -697,7 +712,9 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 				      ticks_slot_overhead),
 				     ticker_cb, aux, ticker_op_cb, aux);
 	LL_ASSERT((ticker_status == TICKER_STATUS_SUCCESS) ||
-		  (ticker_status == TICKER_STATUS_BUSY));
+		  (ticker_status == TICKER_STATUS_BUSY) ||
+		  ((ticker_status == TICKER_STATUS_FAILURE) &&
+		   IS_ENABLED(CONFIG_BT_TICKER_LOW_LAT)));
 
 	return;
 
@@ -713,13 +730,28 @@ ull_scan_aux_rx_flush:
 		 * immediately since we are in sync context.
 		 */
 		if (!IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) || aux->rx_last) {
-			/* If scan is being disabled, rx has already been
-			 * enqueued before coming here, ull_scan_aux_rx_flush.
-			 * Do not add it, to avoid duplicate report generation,
-			 * release and probable infinite loop processing the
-			 * list.
+			LL_ASSERT(scan);
+
+			/* If scan is being disabled, rx could already be
+			 * enqueued before coming here to ull_scan_aux_rx_flush.
+			 * Check if rx not the last in the list of received PDUs
+			 * then add it, else do not add it, to avoid duplicate
+			 * report generation, release and probable infinite loop
+			 * processing of the list.
 			 */
 			if (unlikely(scan->is_stop)) {
+				/* Add the node rx to aux context list of node
+				 * rx if not already added when coming here to
+				 * ull_scan_aux_rx_flush. This is handling a
+				 * race condition where in the last PDU in
+				 * chain is received and at the same time scan
+				 * is being disabled.
+				 */
+				if (aux->rx_last != rx) {
+					aux->rx_last->rx_ftr.extra = rx;
+					aux->rx_last = rx;
+				}
+
 				return;
 			}
 
@@ -730,11 +762,10 @@ ull_scan_aux_rx_flush:
 
 			LL_ASSERT(sync_lll);
 
-			ll_rx_put(link, rx);
-			ll_rx_sched();
+			ll_rx_put_sched(link, rx);
 
 			sync = HDR_LLL2ULL(sync_lll);
-			if (unlikely(sync->is_stop)) {
+			if (unlikely(sync->is_stop && sync_lll->lll_aux)) {
 				return;
 			}
 		}
@@ -1061,6 +1092,7 @@ static inline struct ll_sync_set *sync_create_get(struct ll_scan_set *scan)
 #endif /* !CONFIG_BT_CTLR_SYNC_PERIODIC */
 }
 
+#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC)
 static inline struct ll_sync_iso_set *
 	sync_iso_create_get(struct ll_sync_set *sync)
 {
@@ -1070,6 +1102,7 @@ static inline struct ll_sync_iso_set *
 	return NULL;
 #endif /* !CONFIG_BT_CTLR_SYNC_ISO */
 }
+#endif /* CONFIG_BT_CTLR_SYNC_PERIODIC */
 
 static void done_disabled_cb(void *param)
 {
@@ -1190,8 +1223,7 @@ static void aux_sync_partial(void *param)
 	LL_ASSERT(rx);
 	rx->rx_ftr.aux_sched = 1U;
 
-	ll_rx_put(rx->link, rx);
-	ll_rx_sched();
+	ll_rx_put_sched(rx->link, rx);
 }
 
 static void aux_sync_incomplete(void *param)

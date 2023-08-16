@@ -3,14 +3,18 @@
 Devicetree API
 ##############
 
-This is a reference page for the ``<devicetree.h>`` API. The API is macro
+This is a reference page for the ``<zephyr/devicetree.h>`` API. The API is macro
 based. Use of these macros has no impact on scheduling. They can be used from
 any calling context and at file scope.
 
-Some of these require a special macro named ``DT_DRV_COMPAT`` to be defined
-before they can be used; these are discussed individually below. These macros
-are generally meant for use within :ref:`device drivers <device_model_api>`,
-though they can be used outside of drivers with appropriate care.
+Some of these -- the ones beginning with ``DT_INST_`` -- require a special
+macro named ``DT_DRV_COMPAT`` to be defined before they can be used; these are
+discussed individually below. These macros are generally meant for use within
+:ref:`device drivers <device_model_api>`, though they can be used outside of
+drivers with appropriate care.
+
+.. contents:: Contents
+   :local:
 
 .. _devicetree-generic-apis:
 
@@ -185,8 +189,8 @@ implements support for. Here is an example devicetree fragment:
            current-speed = <115200>;
    };
 
-Example usage, assuming serial@40001000 is the only enabled node
-with compatible "vnd,serial":
+Example usage, assuming ``serial@40001000`` is the only enabled node
+with compatible ``vnd,serial``:
 
 .. code-block:: c
 
@@ -290,6 +294,15 @@ and properties related to them.
 
 .. doxygengroup:: devicetree-mbox
 
+.. _devicetree-memory-attr-api:
+
+Memory attributes
+=================
+
+These conveniences may be used for nodes with a memory attribute property.
+
+.. doxygengroup:: devicetree-memory-attr
+
 .. _devicetree-pinctrl-api:
 
 Pinctrl (pin control)
@@ -354,12 +367,6 @@ system-wide settings. The :c:func:`DT_CHOSEN()` macro can be used to get a node
 identifier for a chosen node.
 
 .. doxygengroup:: devicetree-generic-chosen
-   :project: Zephyr
-
-There are also conveniences for commonly used zephyr-specific properties of the
-``/chosen`` node.
-
-.. doxygengroup:: devicetree-zephyr
    :project: Zephyr
 
 Zephyr-specific chosen nodes

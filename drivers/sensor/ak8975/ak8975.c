@@ -77,8 +77,10 @@ static int ak8975_channel_get(const struct device *dev,
 		ak8975_convert(val, drv_data->x_sample, drv_data->x_adj);
 	} else if (chan == SENSOR_CHAN_MAGN_Y) {
 		ak8975_convert(val, drv_data->y_sample, drv_data->y_adj);
-	} else { /* chan == SENSOR_CHAN_MAGN_Z */
+	} else if (chan == SENSOR_CHAN_MAGN_Z) {
 		ak8975_convert(val, drv_data->z_sample, drv_data->z_adj);
+	} else {
+		return -ENOTSUP;
 	}
 
 	return 0;
@@ -147,7 +149,7 @@ int ak8975_init(const struct device *dev)
 		.i2c = I2C_DT_SPEC_INST_GET(inst),					\
 	};										\
 											\
-	DEVICE_DT_INST_DEFINE(inst, ak8975_init, NULL,					\
+	SENSOR_DEVICE_DT_INST_DEFINE(inst, ak8975_init, NULL,				\
 			      &ak8975_data_##inst, &ak8975_config_##inst,		\
 			      POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY,			\
 			      &ak8975_driver_api);					\

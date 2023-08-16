@@ -6,21 +6,12 @@
 
 #include <zephyr/ztest.h>
 
-#if defined(CONFIG_ARCH_POSIX)
 #define ALIGN_MS_BOUNDARY		       \
 	do {				       \
 		uint32_t t = k_uptime_get_32();   \
 		while (t == k_uptime_get_32()) \
-			k_busy_wait(50);       \
+			Z_SPIN_DELAY(50);      \
 	} while (0)
-#else
-#define ALIGN_MS_BOUNDARY		       \
-	do {				       \
-		uint32_t t = k_uptime_get_32();   \
-		while (t == k_uptime_get_32()) \
-			;		       \
-	} while (0)
-#endif
 
 struct timer_data {
 	int duration_count;
@@ -55,30 +46,24 @@ ZTEST_USER(clock, test_clock_uptime)
 	/**TESTPOINT: uptime elapse*/
 	t64 = k_uptime_get();
 	while (k_uptime_get() < (t64 + 5)) {
-#if defined(CONFIG_ARCH_POSIX)
-		k_busy_wait(50);
-#endif
+		Z_SPIN_DELAY(50);
 	}
 
 	/**TESTPOINT: uptime elapse lower 32-bit*/
 	t32 = k_uptime_get_32();
 	while (k_uptime_get_32() < (t32 + 5)) {
-#if defined(CONFIG_ARCH_POSIX)
-		k_busy_wait(50);
-#endif
+		Z_SPIN_DELAY(50);
 	}
 
 	/**TESTPOINT: uptime straddled ms boundary*/
 	t32 = k_uptime_get_32();
 	ALIGN_MS_BOUNDARY;
-	zassert_true(k_uptime_get_32() > t32, NULL);
+	zassert_true(k_uptime_get_32() > t32);
 
 	/**TESTPOINT: uptime delta*/
 	d64 = k_uptime_delta(&d64);
 	while (k_uptime_delta(&d64) == 0) {
-#if defined(CONFIG_ARCH_POSIX)
-		k_busy_wait(50);
-#endif
+		Z_SPIN_DELAY(50);
 	}
 }
 
@@ -132,9 +117,7 @@ ZTEST(clock, test_clock_cycle_32)
 	/*break if cycle counter wrap around*/
 	while (k_cycle_get_32() > c32 &&
 	       k_cycle_get_32() < (c32 + k_ticks_to_cyc_floor32(1))) {
-#if defined(CONFIG_ARCH_POSIX)
-		k_busy_wait(50);
-#endif
+		Z_SPIN_DELAY(50);
 	}
 
 	/**TESTPOINT: cycle/uptime cross check*/
@@ -142,9 +125,7 @@ ZTEST(clock, test_clock_cycle_32)
 	ALIGN_MS_BOUNDARY;
 	t32 = k_uptime_get_32();
 	while (t32 == k_uptime_get_32()) {
-#if defined(CONFIG_ARCH_POSIX)
-		k_busy_wait(50);
-#endif
+		Z_SPIN_DELAY(50);
 	}
 
 	c1 = k_uptime_get_32();
@@ -231,8 +212,8 @@ ZTEST(clock, test_ms_time_duration)
 
 	/** TESTPOINT: waiting time less than duration and check the count*/
 	k_busy_wait(LESS_DURATION * 1000);
-	zassert_true(tdata.duration_count == 0, NULL);
-	zassert_true(tdata.stop_count == 0, NULL);
+	zassert_true(tdata.duration_count == 0);
+	zassert_true(tdata.stop_count == 0);
 
 	/** TESTPOINT: proving duration in millisecond */
 	init_data_count();
@@ -249,6 +230,10 @@ ZTEST(clock, test_ms_time_duration)
 	/** cleanup environment */
 	k_timer_stop(&ktimer);
 }
+
+extern void *common_setup(void);
+ZTEST_SUITE(clock, NULL, common_setup, NULL, NULL, NULL);
+
 /**
  * @}
  */

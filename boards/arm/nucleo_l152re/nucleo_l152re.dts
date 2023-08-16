@@ -8,6 +8,8 @@
 #include <st/l1/stm32l152Xe.dtsi>
 #include <st/l1/stm32l152retx-pinctrl.dtsi>
 #include "arduino_r3_connector.dtsi"
+#include "st_morpho_connector.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "STMicroelectronics STM32L152RE-NUCLEO board";
@@ -33,6 +35,7 @@
 		user_button: button {
 			label = "User";
 			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
 
@@ -41,7 +44,13 @@
 		sw0 = &user_button;
 		eeprom-0 = &eeprom;
 		watchdog0 = &iwdg;
+		die-temp0 = &die_temp;
+		volt-sensor0 = &vref;
 	};
+};
+
+&clk_lsi {
+	status = "okay";
 };
 
 &clk_hsi {
@@ -85,6 +94,8 @@
 };
 
 &rtc {
+	clocks = <&rcc STM32_CLOCK_BUS_APB1 0x10000000>,
+		 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
 	status = "okay";
 };
 
@@ -129,5 +140,9 @@
 };
 
 &dma1 {
+	status = "okay";
+};
+
+&vref {
 	status = "okay";
 };

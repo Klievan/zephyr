@@ -62,7 +62,7 @@ void set_mode_shutdown(uint8_t substate_id)
 }
 
 /* Invoke Low Power/System Off specific Tasks */
-__weak void pm_state_set(enum pm_state state, uint8_t substate_id)
+void pm_state_set(enum pm_state state, uint8_t substate_id)
 {
 	switch (state) {
 	case PM_STATE_SUSPEND_TO_IDLE:
@@ -88,7 +88,7 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 }
 
 /* Handle SOC specific activity after Low Power Mode Exit */
-__weak void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
+void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
 {
 	switch (state) {
 	case PM_STATE_SUSPEND_TO_IDLE:
@@ -104,8 +104,6 @@ __weak void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
 		LL_LPM_EnableSleep();
 	case PM_STATE_SOFT_OFF:
 		/* We should not get there */
-		__fallthrough;
-	case PM_STATE_ACTIVE:
 		__fallthrough;
 	case PM_STATE_SUSPEND_TO_RAM:
 		__fallthrough;
@@ -127,9 +125,8 @@ __weak void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
 }
 
 /* Initialize STM32 Power */
-static int stm32_power_init(const struct device *dev)
+static int stm32_power_init(void)
 {
-	ARG_UNUSED(dev);
 
 	/* enable Power clock */
 	LL_AHB3_GRP1_EnableClock(LL_AHB3_GRP1_PERIPH_PWR);

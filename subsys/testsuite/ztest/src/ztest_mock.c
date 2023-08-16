@@ -6,6 +6,7 @@
 
 #include <zephyr/types.h>
 #include <zephyr/ztest.h>
+#include <zephyr/sys/util.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -56,6 +57,19 @@ void vprintk(const char *fmt, va_list ap)
 {
 	vprintf(fmt, ap);
 }
+
+int snprintk(char *str, size_t size, const char *fmt, ...)
+{
+	va_list ap;
+	int ret;
+
+	va_start(ap, fmt);
+	ret = snprintf(str, size, fmt, ap);
+	va_end(ap);
+
+	return ret;
+}
+
 #else
 
 /*
@@ -64,12 +78,12 @@ void vprintk(const char *fmt, va_list ap)
  */
 #define BITS_PER_UL (8 * sizeof(unsigned long int))
 #define DEFINE_BITFIELD(name, bits)                                            \
-	unsigned long int(name)[((bits) + BITS_PER_UL - 1) / BITS_PER_UL]
+	unsigned long(name)[DIV_ROUND_UP(bits, BITS_PER_UL)]
 
 static inline int sys_bitfield_find_first_clear(const unsigned long *bitmap,
 						const unsigned int bits)
 {
-	const size_t words = (bits + BITS_PER_UL - 1) / BITS_PER_UL;
+	const size_t words = DIV_ROUND_UP(bits, BITS_PER_UL);
 	size_t cnt;
 	unsigned int long neg_bitmap;
 
@@ -237,10 +251,10 @@ void z_ztest_check_expected_data(const char *fn, const char *name, void *data,
 	free_parameter(param);
 
 	if (expected == NULL && data != NULL) {
-		PRINT("%s:%s received null pointer\n", fn, name);
+		PRINT("%s:%s received data while expected null pointer\n", fn, name);
 		ztest_test_fail();
 	} else if (data == NULL && expected != NULL) {
-		PRINT("%s:%s received data while expected null pointer\n", fn,
+		PRINT("%s:%s received null pointer while expected data\n", fn,
 		      name);
 		ztest_test_fail();
 	} else if (data != NULL) {

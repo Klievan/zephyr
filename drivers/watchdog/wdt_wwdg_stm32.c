@@ -15,6 +15,8 @@
 #include <zephyr/sys/__assert.h>
 #include <zephyr/drivers/clock_control/stm32_clock_control.h>
 #include <zephyr/drivers/clock_control.h>
+#include <zephyr/irq.h>
+#include <zephyr/sys_clock.h>
 
 #include "wdt_wwdg_stm32.h"
 
@@ -91,7 +93,7 @@ static uint32_t wwdg_stm32_get_pclk(const struct device *dev)
 	const struct wwdg_stm32_config *cfg = WWDG_STM32_CFG(dev);
 	uint32_t pclk_rate;
 
-	if (clock_control_get_rate(clk, (clock_control_subsys_t *) &cfg->pclken,
+	if (clock_control_get_rate(clk, (clock_control_subsys_t) &cfg->pclken,
 			       &pclk_rate) < 0) {
 		LOG_ERR("Failed call clock_control_get_rate");
 		return -EIO;
@@ -168,7 +170,7 @@ static int wwdg_stm32_setup(const struct device *dev, uint8_t options)
 		LL_APB1_GRP2_EnableClock(LL_APB1_GRP2_PERIPH_DBGMCU);
 #elif defined(CONFIG_SOC_SERIES_STM32L0X)
 		LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_DBGMCU);
-#elif defined(CONFIG_SOC_SERIES_STM32G0X)
+#elif defined(CONFIG_SOC_SERIES_STM32C0X) || defined(CONFIG_SOC_SERIES_STM32G0X)
 		LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_DBGMCU);
 #endif
 #if defined(CONFIG_SOC_SERIES_STM32H7X)
@@ -287,7 +289,7 @@ static int wwdg_stm32_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	return clock_control_on(clk, (clock_control_subsys_t *) &cfg->pclken);
+	return clock_control_on(clk, (clock_control_subsys_t) &cfg->pclken);
 }
 
 static struct wwdg_stm32_data wwdg_stm32_dev_data = {

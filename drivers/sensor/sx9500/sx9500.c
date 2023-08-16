@@ -64,6 +64,10 @@ static int sx9500_channel_get(const struct device *dev,
 
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_PROX);
 
+	if (chan != SENSOR_CHAN_PROX) {
+		return -ENOTSUP;
+	}
+
 	val->val1 = !!(data->prox_stat &
 		       (1 << (4 + CONFIG_SX9500_PROX_CHANNEL)));
 	val->val2 = 0;
@@ -120,12 +124,14 @@ int sx9500_init(const struct device *dev)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_SX9500_TRIGGER
 	if (cfg->int_gpio.port) {
 		if (sx9500_setup_interrupt(dev) < 0) {
 			LOG_DBG("sx9500: failed to setup interrupt");
 			return -EINVAL;
 		}
 	}
+#endif
 
 	return 0;
 }
@@ -139,7 +145,7 @@ int sx9500_init(const struct device *dev)
 			   (.int_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, int_gpios, { 0 }),))	\
 	};											\
 												\
-	DEVICE_DT_INST_DEFINE(inst, sx9500_init, NULL,						\
+	SENSOR_DEVICE_DT_INST_DEFINE(inst, sx9500_init, NULL,					\
 			      &sx9500_data_##inst, &sx9500_config_##inst, POST_KERNEL,		\
 			      CONFIG_SENSOR_INIT_PRIORITY, &sx9500_api_funcs);			\
 

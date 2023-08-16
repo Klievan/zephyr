@@ -8,7 +8,8 @@
 
 / {
 	chosen {
-		zephyr,display = &ili9488;
+		zephyr,display = &ili9488_buydisplay_3_5_tft_touch_arduino;
+		zephyr,keyboard-scan = &kscan_input;
 	};
 };
 
@@ -16,7 +17,7 @@
 	status = "okay";
 	cs-gpios = <&arduino_header 15 GPIO_ACTIVE_LOW>; /* D9 */
 
-	ili9488: ili9488@0 {
+	ili9488_buydisplay_3_5_tft_touch_arduino: ili9488@0 {
 		compatible = "ilitek,ili9488";
 		spi-max-frequency = <25000000>;
 		reg = <0>;
@@ -40,5 +41,9 @@
 		reg = <0x38>;
 		/* Uncomment if IRQ line is available (requires to solder jumper) */
 		/* int-gpios = <&arduino_header 11 GPIO_ACTIVE_LOW>; */ /* D5 */
+
+		kscan_input: kscan-input {
+			compatible = "zephyr,kscan-input";
+		};
 	};
 };

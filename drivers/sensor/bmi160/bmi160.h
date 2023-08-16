@@ -14,6 +14,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/spi.h>
+#include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
 
 /* registers */
@@ -503,10 +504,13 @@ struct bmi160_data {
 #ifdef CONFIG_BMI160_TRIGGER
 #if !defined(CONFIG_BMI160_ACCEL_PMU_SUSPEND)
 	sensor_trigger_handler_t handler_drdy_acc;
+	const struct sensor_trigger *trig_drdy_acc;
 	sensor_trigger_handler_t handler_anymotion;
+	const struct sensor_trigger *trig_anymotion;
 #endif
 #if !defined(CONFIG_BMI160_GYRO_PMU_SUSPEND)
 	sensor_trigger_handler_t handler_drdy_gyr;
+	const struct sensor_trigger *trig_drdy_gyr;
 #endif
 #endif /* CONFIG_BMI160_TRIGGER */
 };

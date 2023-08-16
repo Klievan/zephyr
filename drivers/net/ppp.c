@@ -747,21 +747,7 @@ static int ppp_send(const struct device *dev, struct net_pkt *pkt)
 			protocol = htons(PPP_IP);
 		} else if (net_pkt_family(pkt) == AF_INET6) {
 			protocol = htons(PPP_IPV6);
-		} else if (IS_ENABLED(CONFIG_NET_SOCKETS_PACKET) &&
-			   net_pkt_family(pkt) == AF_PACKET) {
-			char type = (NET_IPV6_HDR(pkt)->vtc & 0xf0);
-
-			switch (type) {
-			case 0x60:
-				protocol = htons(PPP_IPV6);
-				break;
-			case 0x40:
-				protocol = htons(PPP_IP);
-				break;
-			default:
-				return -EPROTONOSUPPORT;
-			}
-		} else {
+		}  else {
 			return -EPROTONOSUPPORT;
 		}
 	}
@@ -1023,7 +1009,7 @@ static int ppp_start(const struct device *dev)
 		 * configuration is enabled, and use that. If none are enabled,
 		 * then use our own config.
 		 */
-#if IS_ENABLED(CONFIG_GSM_MUX)
+#if defined(CONFIG_GSM_MUX)
 		const struct device *mux;
 
 		mux = uart_mux_find(CONFIG_GSM_MUX_DLCI_PPP);
@@ -1060,8 +1046,7 @@ static int ppp_start(const struct device *dev)
 	}
 #endif /* !CONFIG_NET_TEST */
 
-	net_ppp_carrier_on(context->iface);
-
+	net_if_carrier_on(context->iface);
 	return 0;
 }
 
@@ -1069,7 +1054,7 @@ static int ppp_stop(const struct device *dev)
 {
 	struct ppp_driver_context *context = dev->data;
 
-	net_ppp_carrier_off(context->iface);
+	net_if_carrier_off(context->iface);
 	context->modem_init_done = false;
 	return 0;
 }

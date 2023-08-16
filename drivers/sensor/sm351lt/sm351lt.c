@@ -30,6 +30,7 @@ static int sm351lt_trigger_set(const struct device *dev,
 
 	if (trig->chan == SENSOR_CHAN_PROX) {
 		data->changed_handler = handler;
+		data->changed_trigger = trig;
 		ret = gpio_pin_interrupt_configure_dt(&config->int_gpio,
 						      (handler ? data->trigger_type
 							       : GPIO_INT_DISABLE));
@@ -67,13 +68,8 @@ static void sm351lt_thread_cb(const struct device *dev)
 {
 	struct sm351lt_data *data = dev->data;
 
-	struct sensor_trigger mag_trigger = {
-		.type = SENSOR_TRIG_NEAR_FAR,
-		.chan = SENSOR_CHAN_PROX,
-	};
-
 	if (likely(data->changed_handler != NULL)) {
-		data->changed_handler(dev, &mag_trigger);
+		data->changed_handler(dev, data->changed_trigger);
 	}
 
 	return;
@@ -253,7 +249,7 @@ static int sm351lt_init(const struct device *dev)
 		.int_gpio = GPIO_DT_SPEC_INST_GET(inst, gpios),	     \
 	};							     \
 								     \
-	DEVICE_DT_INST_DEFINE(inst,				     \
+	SENSOR_DEVICE_DT_INST_DEFINE(inst,			     \
 			    sm351lt_init,			     \
 			    NULL,				     \
 			    &sm351lt_data_##inst,		     \

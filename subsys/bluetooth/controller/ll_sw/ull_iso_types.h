@@ -4,43 +4,44 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* CIS */
-#define LL_CIS_HANDLE_BASE CONFIG_BT_MAX_CONN
-
-#if defined(CONFIG_BT_CTLR_CONN_ISO_STREAMS)
-#define LAST_VALID_CIS_HANDLE \
-	(CONFIG_BT_CTLR_CONN_ISO_STREAMS + LL_CIS_HANDLE_BASE - 1)
+/* BIS Broadcaster */
+#if defined(CONFIG_BT_CTLR_ADV_ISO)
+#define LL_BIS_ADV_HANDLE_BASE BT_CTLR_ADV_ISO_STREAM_HANDLE_BASE
+#define LL_BIS_ADV_IDX_FROM_HANDLE(conn_handle) \
+	((conn_handle) - (LL_BIS_ADV_HANDLE_BASE))
+#define IS_ADV_ISO_HANDLE(conn_handle) \
+	(((conn_handle) >= (LL_BIS_ADV_HANDLE_BASE)) && \
+	 ((conn_handle) <= ((LL_BIS_ADV_HANDLE_BASE) + \
+			    (BT_CTLR_ADV_ISO_STREAM_MAX) - 1U)))
 #else
-#define LAST_VALID_CIS_HANDLE (LL_CIS_HANDLE_BASE - 1)
-#endif /* CONFIG_BT_CTLR_CONN_ISO_STREAMS */
+#define LL_BIS_ADV_IDX_FROM_HANDLE(conn_handle) 0U
+#define IS_ADV_ISO_HANDLE(conn_handle) 0U
+#endif /* CONFIG_BT_CTLR_ADV_ISO */
 
-#define LL_CIS_IDX_FROM_HANDLE(_handle) \
-	((_handle) - LL_CIS_HANDLE_BASE)
+/* BIS Synchronized Receiver */
+#if defined(CONFIG_BT_CTLR_SYNC_ISO)
+#define LL_BIS_SYNC_HANDLE_BASE BT_CTLR_SYNC_ISO_STREAM_HANDLE_BASE
+#define LL_BIS_SYNC_IDX_FROM_HANDLE(conn_handle) \
+	((conn_handle) - (LL_BIS_SYNC_HANDLE_BASE))
+#define IS_SYNC_ISO_HANDLE(conn_handle) \
+	(((conn_handle) >= (LL_BIS_SYNC_HANDLE_BASE)) && \
+	 ((conn_handle) <= ((LL_BIS_SYNC_HANDLE_BASE) + \
+			    (BT_CTLR_SYNC_ISO_STREAM_MAX) - 1U)))
+#else
+#define LL_BIS_SYNC_IDX_FROM_HANDLE(conn_handle) 0U
+#define IS_SYNC_ISO_HANDLE(conn_handle) 0U
+#endif /* CONFIG_BT_CTLR_SYNC_ISO */
 
+/* CIS */
 #if defined(CONFIG_BT_CTLR_CONN_ISO)
+#define LL_CIS_HANDLE_LAST \
+	(CONFIG_BT_CTLR_CONN_ISO_STREAMS + LL_CIS_HANDLE_BASE - 1)
 #define IS_CIS_HANDLE(_handle) \
 	(((_handle) >= LL_CIS_HANDLE_BASE) && \
-	((_handle) <= LAST_VALID_CIS_HANDLE))
+	((_handle) <= LL_CIS_HANDLE_LAST))
 #else
 #define IS_CIS_HANDLE(_handle) 0
 #endif /* CONFIG_BT_CTLR_CONN_ISO */
-
-
-#if defined(CONFIG_BT_CTLR_ADV_ISO)
-#define IS_ADV_ISO_HANDLE(_handle) \
-	(((_handle) >= BT_CTLR_ADV_ISO_STREAM_HANDLE_BASE) && \
-	((_handle) <= (BT_CTLR_ADV_ISO_STREAM_HANDLE_BASE + BT_CTLR_ADV_ISO_STREAM_MAX - 1)))
-#else
-#define IS_ADV_ISO_HANDLE(_handle) 0
-#endif /* CONFIG_BT_CTLR_ADV_ISO */
-
-#if defined(CONFIG_BT_CTLR_SYNC_ISO)
-#define IS_SYNC_ISO_HANDLE(_handle) \
-	(((_handle) >= BT_CTLR_SYNC_ISO_STREAM_HANDLE_BASE) && \
-	((_handle) <= (BT_CTLR_SYNC_ISO_STREAM_HANDLE_BASE + BT_CTLR_SYNC_ISO_STREAM_MAX - 1U)))
-#else
-#define IS_SYNC_ISO_HANDLE(_handle) 0U
-#endif /* CONFIG_BT_CTLR_SYNC_ISO */
 
 struct ll_iso_test_mode_data {
 	uint32_t received_cnt;
@@ -56,9 +57,9 @@ struct ll_iso_test_mode_data {
 
 /* Common members for ll_conn_iso_stream and ll_broadcast_iso_stream */
 struct ll_iso_stream_hdr {
+	struct ll_iso_test_mode_data test_mode;
 	struct ll_iso_datapath *datapath_in;
 	struct ll_iso_datapath *datapath_out;
-	struct ll_iso_test_mode_data test_mode;
 };
 
 struct ll_iso_datapath {

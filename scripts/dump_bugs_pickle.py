@@ -15,7 +15,7 @@ from github.Issue import Issue
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+        formatter_class=argparse.RawDescriptionHelpFormatter, allow_abbrev=False)
 
     parser.add_argument('pickle_file', metavar='PICKLE-FILE', type=Path,
                         help='pickle file containing list of issues')
@@ -43,7 +43,8 @@ def main() -> None:
     args = parse_args()
     bugs = get_bugs(args)
     for bug in sorted(bugs, key=lambda bug: bug.number):
-        print(f'- :github:`{bug.number}` - {bug.title}')
+        title = bug.title.strip()
+        print(f'- :github:`{bug.number}` - {title}')
 
 if __name__ == '__main__':
     main()

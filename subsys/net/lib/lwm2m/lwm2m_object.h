@@ -53,6 +53,7 @@
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <sys/types.h>
+#include <time.h>
 
 #include <zephyr/net/coap.h>
 #include <zephyr/net/lwm2m.h>
@@ -133,6 +134,12 @@ BUILD_ASSERT(CONFIG_LWM2M_COAP_BLOCK_SIZE <= CONFIG_LWM2M_COAP_MAX_MSG_SIZE,
 
 #define MAX_PACKET_SIZE		(CONFIG_LWM2M_COAP_MAX_MSG_SIZE + \
 				 CONFIG_LWM2M_ENGINE_MESSAGE_HEADER_SIZE)
+
+#if defined(CONFIG_LWM2M_COAP_BLOCK_TRANSFER)
+BUILD_ASSERT(CONFIG_LWM2M_COAP_ENCODE_BUFFER_SIZE >
+		     (CONFIG_LWM2M_COAP_BLOCK_SIZE + CONFIG_LWM2M_ENGINE_MESSAGE_HEADER_SIZE),
+	     "The buffer for serializing message needs to be bigger than a message with one block");
+#endif
 
 /* buffer util macros */
 #define CPKT_BUF_WRITE(cpkt)	(cpkt)->data, &(cpkt)->offset, (cpkt)->max_len
@@ -430,32 +437,23 @@ struct lwm2m_opaque_context {
 	size_t remaining;
 };
 
-struct lwm2m_senml_json_context {
-	bool base_name_stored : 1;
-	bool full_name_true : 1;
-	uint8_t base64_buf_len : 2;
-	uint8_t base64_mod_buf[3];
-	uint8_t json_flags;
-	struct lwm2m_obj_path base_name_path;
-	uint8_t resource_path_level;
-};
-
 struct lwm2m_block_context {
 	struct coap_block_context ctx;
 	struct lwm2m_opaque_context opaque;
 	int64_t timestamp;
 	uint32_t expected;
-	uint8_t token[8];
-	uint8_t tkl;
 	bool last_block : 1;
-	uint8_t  level;  /* 3/4 (4 = resource instance) */
-	uint16_t res_id;
-	uint16_t res_inst_id;
+	struct lwm2m_obj_path path;
 };
 
 struct lwm2m_output_context {
 	const struct lwm2m_writer *writer;
 	struct coap_packet *out_cpkt;
+
+#if defined(CONFIG_LWM2M_COAP_BLOCK_TRANSFER)
+	/* Corresponding block context. NULL if block transfer is not used. */
+	struct coap_block_context *block_ctx;
+#endif
 
 	/* private output data */
 	void *user_data;
@@ -498,14 +496,23 @@ struct lwm2m_message {
 	/** Buffer data related outgoing message */
 	uint8_t msg_data[MAX_PACKET_SIZE];
 
+#if defined(CONFIG_LWM2M_COAP_BLOCK_TRANSFER)
+	/** Buffer data containing complete message */
+	struct coap_packet body_encode_buffer;
+#endif
+
 	/** Message transmission handling for TYPE_CON */
 	struct coap_pending *pending;
 	struct coap_reply *reply;
+#if defined(CONFIG_LWM2M_RESOURCE_DATA_CACHE_SUPPORT)
+	struct lwm2m_cache_read_info *cache_info;
+#endif
 
 	/** Message configuration */
 	uint8_t *token;
 	coap_reply_t reply_cb;
 	lwm2m_message_timeout_cb_t message_timeout_cb;
+	lwm2m_send_cb_t send_status_cb;
 	uint16_t mid;
 	uint8_t type;
 	uint8_t code;
@@ -536,6 +543,8 @@ struct lwm2m_writer {
 			    struct lwm2m_obj_path *path);
 	int (*put_end_ri)(struct lwm2m_output_context *out,
 			  struct lwm2m_obj_path *path);
+	int (*put_data_timestamp)(struct lwm2m_output_context *out,
+				time_t value);
 	int (*put_s8)(struct lwm2m_output_context *out,
 		      struct lwm2m_obj_path *path, int8_t value);
 	int (*put_s16)(struct lwm2m_output_context *out,
@@ -545,7 +554,7 @@ struct lwm2m_writer {
 	int (*put_s64)(struct lwm2m_output_context *out,
 		       struct lwm2m_obj_path *path, int64_t value);
 	int (*put_time)(struct lwm2m_output_context *out,
-		       struct lwm2m_obj_path *path, int64_t value);
+		       struct lwm2m_obj_path *path, time_t value);
 	int (*put_string)(struct lwm2m_output_context *out,
 			  struct lwm2m_obj_path *path, char *buf,
 			  size_t buflen);
@@ -566,7 +575,7 @@ struct lwm2m_writer {
 struct lwm2m_reader {
 	int (*get_s32)(struct lwm2m_input_context *in, int32_t *value);
 	int (*get_s64)(struct lwm2m_input_context *in, int64_t *value);
-	int (*get_time)(struct lwm2m_input_context *in, int64_t *value);
+	int (*get_time)(struct lwm2m_input_context *in, time_t *value);
 	int (*get_string)(struct lwm2m_input_context *in, uint8_t *buf,
 			  size_t buflen);
 	int (*get_float)(struct lwm2m_input_context *in, double *value);
@@ -734,7 +743,7 @@ static inline int engine_put_float(struct lwm2m_output_context *out,
 }
 
 static inline int engine_put_time(struct lwm2m_output_context *out,
-				  struct lwm2m_obj_path *path, int64_t value)
+				  struct lwm2m_obj_path *path, time_t value)
 {
 	return out->writer->put_time(out, path, value);
 }
@@ -773,6 +782,15 @@ static inline int engine_put_corelink(struct lwm2m_output_context *out,
 	return -ENOTSUP;
 }
 
+static inline int engine_put_timestamp(struct lwm2m_output_context *out, time_t timestamp)
+{
+	if (out->writer->put_data_timestamp) {
+		return out->writer->put_data_timestamp(out, timestamp);
+	}
+
+	return -ENOTSUP;
+}
+
 static inline int engine_get_s32(struct lwm2m_input_context *in, int32_t *value)
 {
 	return in->reader->get_s32(in, value);
@@ -789,7 +807,7 @@ static inline int engine_get_string(struct lwm2m_input_context *in,
 	return in->reader->get_string(in, buf, buflen);
 }
 
-static inline int engine_get_time(struct lwm2m_input_context *in, int64_t *value)
+static inline int engine_get_time(struct lwm2m_input_context *in, time_t *value)
 {
 	return in->reader->get_time(in, value);
 }

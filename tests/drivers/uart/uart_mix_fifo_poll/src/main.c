@@ -17,18 +17,22 @@
 #include <zephyr/random/rand32.h>
 /* RX and TX pins have to be connected together*/
 
-#if defined(CONFIG_BOARD_NRF52840DK_NRF52840)
-#define UART_DEVICE_DEV DT_NODELABEL(uart0)
-#elif defined(CONFIG_BOARD_NRF9160DK_NRF9160)
-#define UART_DEVICE_DEV DT_NODELABEL(uart1)
+#if DT_NODE_EXISTS(DT_NODELABEL(dut))
+#define UART_NODE DT_NODELABEL(dut)
 #elif defined(CONFIG_BOARD_ATSAMD21_XPRO)
-#define UART_DEVICE_DEV DT_NODELABEL(sercom1)
+#define UART_NODE DT_NODELABEL(sercom1)
 #elif defined(CONFIG_BOARD_ATSAMR21_XPRO)
-#define UART_DEVICE_DEV DT_NODELABEL(sercom3)
+#define UART_NODE DT_NODELABEL(sercom3)
 #elif defined(CONFIG_BOARD_ATSAME54_XPRO)
-#define UART_DEVICE_DEV DT_NODELABEL(sercom1)
+#define UART_NODE DT_NODELABEL(sercom1)
 #else
-#define UART_DEVICE_DEV DT_CHOSEN(zephyr_console)
+#define UART_NODE DT_CHOSEN(zephyr_console)
+#endif
+
+#if DT_NODE_EXISTS(DT_NODELABEL(counter_dev))
+#define COUNTER_NODE DT_NODELABEL(counter_dev)
+#else
+#define COUNTER_NODE DT_NODELABEL(timer0)
 #endif
 
 struct rx_source {
@@ -61,9 +65,9 @@ static struct test_data test_data[3];
 static struct test_data int_async_data;
 
 static const struct device *const counter_dev =
-	DEVICE_DT_GET(DT_NODELABEL(timer0));
+	DEVICE_DT_GET(COUNTER_NODE);
 static const struct device *const uart_dev =
-	DEVICE_DT_GET(UART_DEVICE_DEV);
+	DEVICE_DT_GET(UART_NODE);
 
 static bool async;
 static bool int_driven;
@@ -105,7 +109,7 @@ static void counter_top_handler(const struct device *dev, void *user_data)
 
 		err = uart_rx_enable(uart_dev, async_rx_buf,
 				     sizeof(async_rx_buf), 1 * USEC_PER_MSEC);
-		zassert_true(err >= 0, NULL);
+		zassert_true(err >= 0);
 		async_rx_enabled = true;
 	} else if (int_driven) {
 		if (enable) {
@@ -148,15 +152,15 @@ static void init_test(void)
 	/* Setup counter which will periodically enable/disable UART RX,
 	 * Disabling RX should lead to flow control being activated.
 	 */
-	zassert_true(device_is_ready(counter_dev), NULL);
+	zassert_true(device_is_ready(counter_dev));
 
 	top_cfg.ticks = counter_us_to_ticks(counter_dev, 1000);
 
 	err = counter_set_top_value(counter_dev, &top_cfg);
-	zassert_true(err >= 0, NULL);
+	zassert_true(err >= 0);
 
 	err = counter_start(counter_dev);
-	zassert_true(err >= 0, NULL);
+	zassert_true(err >= 0);
 }
 
 static void rx_isr(void)
@@ -256,7 +260,7 @@ static void int_async_thread_func(void *p_data, void *base, void *range)
 			int err;
 
 			err = k_sem_take(&async_tx_sem, K_MSEC(1000));
-			zassert_true(err >= 0, NULL);
+			zassert_true(err >= 0);
 
 			int idx = data->cnt & 0xF;
 			size_t len = (idx < BUF_SIZE / 2) ? 5 : 1; /* Try various lengths */
@@ -311,7 +315,7 @@ static void init_test_data(struct test_data *data, const uint8_t *buf, int repea
 	data->max = repeat;
 }
 
-static void test_mixed_uart_access(void)
+ZTEST(uart_mix_fifo_poll, test_mixed_uart_access)
 {
 	int repeat = 10000;
 	int err;
@@ -345,12 +349,12 @@ static void test_mixed_uart_access(void)
 
 	for (int i = 0; i < num_of_contexts; i++) {
 		err = k_sem_take(&test_data[i].sem, K_MSEC(10000));
-		zassert_equal(err, 0, NULL);
+		zassert_equal(err, 0);
 	}
 
 	if (async || int_driven) {
 		err = k_sem_take(&int_async_data.sem, K_MSEC(10000));
-		zassert_equal(err, 0, NULL);
+		zassert_equal(err, 0);
 	}
 
 	k_msleep(10);
@@ -362,12 +366,12 @@ static void test_mixed_uart_access(void)
 	}
 }
 
-void test_main(void)
+void *uart_mix_setup(void)
 {
 	init_test();
 
-	ztest_test_suite(uart_mix_fifo_poll_test,
-			 ztest_unit_test(test_mixed_uart_access)
-			 );
-	ztest_run_test_suite(uart_mix_fifo_poll_test);
+	return NULL;
 }
+
+ZTEST_SUITE(uart_mix_fifo_poll, NULL, uart_mix_setup,
+		NULL, NULL, NULL);

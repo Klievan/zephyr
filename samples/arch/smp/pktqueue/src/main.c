@@ -133,7 +133,7 @@ void queue_thread(void *arg1, void *arg2, void *arg3)
 	k_mutex_unlock(&fetch_queue_mtx);
 }
 
-void main(void)
+int main(void)
 {
 	uint32_t start_time, stop_time, cycles_spent, nanoseconds_spent;
 
@@ -141,7 +141,7 @@ void main(void)
 	printk("Simulating IP header validation on multiple cores.\n");
 	printk("Each of %d parallel queues is processed by %d threads"
 		" on %d cores and contain %d packet headers.\n",
-		QUEUE_NUM, THREADS_NUM, CONFIG_MP_NUM_CPUS, SIZE_OF_QUEUE);
+		QUEUE_NUM, THREADS_NUM, arch_num_cpus(), SIZE_OF_QUEUE);
 	printk("Bytes in packet header: %d\n\n", SIZE_OF_HEADER);
 
 	/* initializing "sender" queue */
@@ -201,4 +201,5 @@ void main(void)
 	}
 
 	k_sleep(K_MSEC(10));
+	return 0;
 }

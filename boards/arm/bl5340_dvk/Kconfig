@@ -1,14 +1,8 @@
 # BL5340-DVK board configuration
 
-# Copyright (c) 2019 - 2021 Nordic Semiconductor ASA
-# Copyright (c) 2021 Laird Connectivity
+# Copyright (c) 2019-2021 Nordic Semiconductor ASA
+# Copyright (c) 2021-2023 Laird Connectivity
 # SPDX-License-Identifier: Apache-2.0
-
-config IPM_NRFX
-	default IPM
-
-config MBOX_NRFX_IPC
-	default MBOX
 
 if BOARD_BL5340_DVK_CPUAPP || BOARD_BL5340_DVK_CPUAPP_NS
 
@@ -27,18 +21,10 @@ config BOARD_ENABLE_DCDC_HV
 	select SOC_DCDC_NRF53X_HV
 	default y
 
-choice BT_HCI_BUS_TYPE
-	default BT_RPMSG if BT
-endchoice
-
-config HEAP_MEM_POOL_SIZE
-	default 4096 if BT_RPMSG
-
-config BT_HCI_VS
-	default y if BT
-
 config BOARD_ENABLE_CPUNET
 	bool "NRF53 Network MCU"
+	select SOC_NRF_GPIO_FORWARDER_FOR_NRF5340 if \
+		$(dt_compat_enabled,$(DT_COMPAT_NORDIC_NRF_GPIO_FORWARDER))
 	help
 	  This option enables releasing the Network 'force off' signal, which
 	  as a consequence will power up the Network MCU during system boot.
@@ -64,14 +50,6 @@ config DOMAIN_CPUNET_BOARD
 endif # BOARD_BL5340_DVK_CPUAPP || BOARD_BL5340_DVK_CPUAPP_NS
 
 if BOARD_BL5340_DVK_CPUNET
-
-# BT_CTLR depends on BT. When BT is enabled we should default to also
-# enabling the controller.
-config BT_CTLR
-	default y if BT
-
-config BT_ECC
-	default y if BT
 
 config DOMAIN_CPUAPP_BOARD
 	string

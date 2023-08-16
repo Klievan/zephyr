@@ -8,6 +8,7 @@
 #include <st/h7/stm32h753Xi.dtsi>
 #include <st/h7/stm32h753zitx-pinctrl.dtsi>
 #include "arduino_r3_connector.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "STMicroelectronics STM32H743ZI-NUCLEO board";
@@ -48,6 +49,7 @@
 		user_button: button_0 {
 			label = "User";
 			gpios = <&gpioc 13 GPIO_ACTIVE_HIGH>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
 
@@ -56,7 +58,16 @@
 		led1 = &yellow_led;
 		pwm-led0 = &red_pwm_led;
 		sw0 = &user_button;
+		volt-sensor1 = &vbat;
 	};
+};
+
+&clk_lsi {
+	status = "okay";
+};
+
+&clk_hsi48 {
+	status = "okay";
 };
 
 &clk_hse {
@@ -100,6 +111,8 @@ zephyr_udc0: &usbotg_fs {
 };
 
 &rtc {
+	clocks = <&rcc STM32_CLOCK_BUS_APB4 0x00010000>,
+		 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
 	status = "okay";
 };
 
@@ -206,4 +219,8 @@ zephyr_udc0: &usbotg_fs {
 		};
 
 	};
+};
+
+&vbat {
+	status = "okay";
 };

@@ -25,6 +25,13 @@
 #define BUFFER_LENGTH           10
 #define RECHECK_RANDOM_ENTROPY  0x10
 
+#ifdef CONFIG_RANDOM_BUFFER_NOCACHED
+__attribute__((__section__(".nocache")))
+static uint8_t entropy_buffer[BUFFER_LENGTH] = {0};
+#else
+static uint8_t entropy_buffer[BUFFER_LENGTH] = {0};
+#endif
+
 static int random_entropy(const struct device *dev, char *buffer, char num)
 {
 	int ret, i;
@@ -69,7 +76,6 @@ static int random_entropy(const struct device *dev, char *buffer, char num)
 static int get_entropy(void)
 {
 	const struct device *const dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_entropy));
-	uint8_t buffer[BUFFER_LENGTH] = { 0 };
 	int ret;
 
 	if (!device_is_ready(dev)) {
@@ -80,7 +86,7 @@ static int get_entropy(void)
 	TC_PRINT("random device is %p, name is %s\n",
 		 dev, dev->name);
 
-	ret = random_entropy(dev, buffer, 0);
+	ret = random_entropy(dev, entropy_buffer, 0);
 
 	/* Check whether 20% or more of buffer still filled with default
 	 * value(0), if yes then recheck again by filling nonzero value(0xa5)
@@ -88,7 +94,7 @@ static int get_entropy(void)
 	 * of buffer filled with value(0xa5) or not.
 	 */
 	if (ret == RECHECK_RANDOM_ENTROPY) {
-		ret = random_entropy(dev, buffer, 0xa5);
+		ret = random_entropy(dev, entropy_buffer, 0xa5);
 		if (ret == RECHECK_RANDOM_ENTROPY) {
 			return TC_FAIL;
 		} else {
@@ -100,7 +106,7 @@ static int get_entropy(void)
 
 ZTEST(entropy_api, test_entropy_get_entropy)
 {
-	zassert_true(get_entropy() == TC_PASS, NULL);
+	zassert_true(get_entropy() == TC_PASS);
 }
 
 void *entropy_api_setup(void)

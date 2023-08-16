@@ -45,6 +45,7 @@ static void init_heap(void)
 #define init_heap(...)
 #endif /* CONFIG_MBEDTLS_ENABLE_HEAP && MBEDTLS_MEMORY_BUFFER_ALLOC_C */
 
+#if defined(CONFIG_MBEDTLS_ZEPHYR_ENTROPY)
 static const struct device *const entropy_dev =
 			DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_entropy));
 
@@ -80,10 +81,10 @@ int mbedtls_hardware_poll(void *data, unsigned char *output, size_t len,
 
 	return 0;
 }
+#endif /* CONFIG_MBEDTLS_ZEPHYR_ENTROPY */
 
-static int _mbedtls_init(const struct device *device)
+static int _mbedtls_init(void)
 {
-	ARG_UNUSED(device);
 
 	init_heap();
 
@@ -94,4 +95,15 @@ static int _mbedtls_init(const struct device *device)
 	return 0;
 }
 
+#if defined(CONFIG_MBEDTLS_INIT)
 SYS_INIT(_mbedtls_init, POST_KERNEL, 0);
+#endif
+
+/* if CONFIG_MBEDTLS_INIT is not defined then this function
+ * should be called by the platform before any mbedtls functionality
+ * is used
+ */
+int mbedtls_init(void)
+{
+	return _mbedtls_init();
+}

@@ -954,8 +954,8 @@ end:
 static void schedule_next_retransmission(void)
 {
 	struct coap_pending *pending;
-	int32_t remaining;
-	uint32_t now = k_uptime_get_32();
+	int64_t remaining;
+	int64_t now = k_uptime_get();
 
 	/* Get the first pending retransmission to expire after cycling. */
 	pending = coap_pending_next_to_expire(pendings, NUM_PENDINGS);
@@ -1427,7 +1427,7 @@ static int process_client_request(void)
 	return 0;
 }
 
-void main(void)
+int main(void)
 {
 	int r;
 
@@ -1458,8 +1458,9 @@ void main(void)
 	}
 
 	LOG_DBG("Done");
-	return;
+	return 0;
 
 quit:
 	LOG_ERR("Quit");
+	return 0;
 }

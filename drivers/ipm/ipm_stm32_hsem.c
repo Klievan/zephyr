@@ -14,6 +14,7 @@
 #include "stm32_hsem.h"
 
 #include <zephyr/logging/log.h>
+#include <zephyr/irq.h>
 LOG_MODULE_REGISTER(ipm_stm32_hsem, CONFIG_IPM_LOG_LEVEL);
 
 #define HSEM_CPU1                   1
@@ -163,7 +164,7 @@ static int stm32_hsem_mailbox_init(const struct device *dev)
 		}
 
 		/* Enable clock */
-		if (clock_control_on(clk, (clock_control_subsys_t *)&cfg->pclken) != 0) {
+		if (clock_control_on(clk, (clock_control_subsys_t)&cfg->pclken) != 0) {
 			LOG_WRN("Failed to enable clock");
 			return -EIO;
 		}

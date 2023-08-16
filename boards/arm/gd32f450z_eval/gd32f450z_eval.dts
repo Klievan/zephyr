@@ -7,6 +7,7 @@
 
 #include <gigadevice/gd32f4xx/gd32f450xk.dtsi>
 #include "gd32f450z_eval-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "GigaDevice GD32F450Z-EVAL";
@@ -17,6 +18,7 @@
 		zephyr,flash = &flash0;
 		zephyr,console = &usart0;
 		zephyr,shell-uart = &usart0;
+		zephyr,flash-controller = &fmc;
 	};
 
 	leds {
@@ -40,14 +42,17 @@
 		wakeup_key: wakeup_key {
 			label = "WAKEUP_KEY";
 			gpios = <&gpioa 0 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_WAKEUP>;
 		};
 		tamper_key: tamper_key {
 			label = "TAMPER_KEY";
 			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 		user_key: user_key {
 			label = "USER_KEY";
 			gpios = <&gpiob 14 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_1>;
 		};
 	};
 
@@ -67,6 +72,7 @@
 		pwm-led0 = &pwm_led;
 		eeprom-0 = &eeprom0;
 		spi-flash0 = &nor_flash;
+		watchdog0 = &fwdgt;
 	};
 };
 
@@ -143,4 +149,8 @@
 		status = "okay";
 		jedec-id = [c8 40 15];
 	};
+};
+
+&fwdgt {
+	status = "okay";
 };

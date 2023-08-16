@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2017 Nordic Semiconductor ASA
  * Copyright (c) 2015 Runtime Inc
+ * Copyright (c) 2023 Sensorfy B.V.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -56,8 +57,6 @@ extern "C" {
 struct flash_area {
 	/** ID number */
 	uint8_t fa_id;
-	/** Provided for compatibility with MCUboot */
-	uint8_t fa_device_id;
 	uint16_t pad16;
 	/** Start offset from the beginning of the flash device */
 	off_t fa_off;
@@ -65,6 +64,10 @@ struct flash_area {
 	size_t fa_size;
 	/** Backing flash device */
 	const struct device *fa_dev;
+#if CONFIG_FLASH_MAP_LABELS
+	/** Partition label if defined in DTS. Otherwise nullptr; */
+	const char *fa_label;
+#endif
 };
 
 /**
@@ -158,8 +161,8 @@ int flash_area_read(const struct flash_area *fa, off_t off, void *dst,
  * as wrapped flash driver.
  *
  * @param[in]  fa  Flash area
- * @param[in]  off Offset relative from beginning of flash area to read
- * @param[out] src Buffer with data to be written
+ * @param[in]  off Offset relative from beginning of flash area to write
+ * @param[in]  src Buffer with data to be written
  * @param[in]  len Number of bytes to write
  *
  * @return  0 on success, negative errno code on fail.
@@ -240,11 +243,22 @@ int flash_area_has_driver(const struct flash_area *fa);
 /**
  * Get driver for given flash area.
  *
- * @param fa Flash area.
+ * @param[in] fa Flash area.
  *
  * @return device driver.
  */
 const struct device *flash_area_get_device(const struct flash_area *fa);
+
+#if CONFIG_FLASH_MAP_LABELS
+/**
+ * Get the label property from the device tree
+ *
+ * @param[in] fa Flash area.
+ *
+ * @return The label property if it is defined, otherwise NULL
+ */
+const char *flash_area_label(const struct flash_area *fa);
+#endif
 
 /**
  * Get the value expected to be read when accessing any erased
@@ -257,19 +271,19 @@ const struct device *flash_area_get_device(const struct flash_area *fa);
  */
 uint8_t flash_area_erased_val(const struct flash_area *fa);
 
-#define FLASH_AREA_LABEL_EXISTS(label) \
+#define FLASH_AREA_LABEL_EXISTS(label) __DEPRECATED_MACRO \
 	DT_HAS_FIXED_PARTITION_LABEL(label)
 
-#define FLASH_AREA_LABEL_STR(lbl) \
+#define FLASH_AREA_LABEL_STR(lbl) __DEPRECATED_MACRO \
 	DT_PROP(DT_NODE_BY_FIXED_PARTITION_LABEL(lbl), label)
 
-#define FLASH_AREA_ID(label) \
+#define FLASH_AREA_ID(label) __DEPRECATED_MACRO \
 	DT_FIXED_PARTITION_ID(DT_NODE_BY_FIXED_PARTITION_LABEL(label))
 
-#define FLASH_AREA_OFFSET(label) \
+#define FLASH_AREA_OFFSET(label) __DEPRECATED_MACRO \
 	DT_REG_ADDR(DT_NODE_BY_FIXED_PARTITION_LABEL(label))
 
-#define FLASH_AREA_SIZE(label) \
+#define FLASH_AREA_SIZE(label) __DEPRECATED_MACRO \
 	DT_REG_SIZE(DT_NODE_BY_FIXED_PARTITION_LABEL(label))
 
 /**

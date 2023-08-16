@@ -7,8 +7,10 @@ toolchain:
   - gnuarmemb
   - xtools
 supported:
+  - adc
   - gpio
   - memc
+  - pwm
   - spi
   - watchdog
   - xplained_gpio

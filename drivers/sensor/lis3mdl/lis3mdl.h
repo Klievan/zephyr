@@ -12,6 +12,7 @@
 #include <zephyr/types.h>
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/kernel.h>
 
 #define LIS3MDL_REG_WHO_AM_I            0x0F
 #define LIS3MDL_CHIP_ID                 0x3D
@@ -118,7 +119,7 @@ struct lis3mdl_data {
 	const struct device *dev;
 	struct gpio_callback gpio_cb;
 
-	struct sensor_trigger data_ready_trigger;
+	const struct sensor_trigger *data_ready_trigger;
 	sensor_trigger_handler_t data_ready_handler;
 
 #if defined(CONFIG_LIS3MDL_TRIGGER_OWN_THREAD)

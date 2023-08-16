@@ -5,12 +5,11 @@
  */
 
 #include <zephyr/init.h>
-#include <zephyr/kernel_structs.h>
+#include <zephyr/kernel.h>
 #include <kernel_arch_data.h>
 #include <kernel_arch_func.h>
 #include <zephyr/arch/x86/msr.h>
 #include <zephyr/arch/x86/cpuid.h>
-#include <zephyr/kernel.h>
 
 /*
  * See:
@@ -18,9 +17,8 @@
  */
 
 #if defined(CONFIG_DISABLE_SSBD) || defined(CONFIG_ENABLE_EXTENDED_IBRS)
-static int spec_ctrl_init(const struct device *dev)
+static int spec_ctrl_init(void)
 {
-	ARG_UNUSED(dev);
 
 	uint32_t enable_bits = 0U;
 	uint32_t cpuid7 = z_x86_cpuid_extended_features();

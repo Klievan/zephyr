@@ -7,6 +7,7 @@
 /dts-v1/;
 #include <atmel/samr21.dtsi>
 #include "atsamr21_xpro-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "SAM R21 Xplained Pro";
@@ -48,6 +49,7 @@
 		user_button: button_0 {
 			gpios = <&porta 28 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
 			label = "SW0";
+			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
 
@@ -160,6 +162,14 @@
 		slptr-gpios = <&porta 20 GPIO_ACTIVE_HIGH>;
 		dig2-gpios = <&portb 17 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 		status = "okay";
+		tx-pwr-min = [01 11];	/* -17.0 dBm */
+		tx-pwr-max = [00 04];	/*   4.0 dBm */
+		tx-pwr-table = [00 01 03 04 05 05 06 06
+				07 07 07 08 08 09 09 0a
+				0a 0a 0b 0b 0b 0b 0c 0c
+				0c 0c 0d 0d 0d 0d 0d 0d
+				0d 0d 0e 0e 0e 0e 0e 0e
+				0e 0e 0e 0e 0e 0e 0f 0f];
 	};
 };
 
@@ -180,10 +190,6 @@ zephyr_udc0: &usb0 {
 
 	pinctrl-0 = <&usb_dc_default>;
 	pinctrl-names = "default";
-};
-
-&rtc {
-	status = "okay";
 };
 
 ext1_spi: &sercom5 {

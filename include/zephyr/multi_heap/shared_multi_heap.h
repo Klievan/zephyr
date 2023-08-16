@@ -17,9 +17,17 @@ extern "C" {
 #endif
 
 /**
+ * @brief Heap Management
+ * @defgroup heaps Heap Management
+ * @ingroup os_services
+ * @{
+ * @}
+ */
+
+/**
  * @brief Shared Multi-Heap (SMH) interface
  * @defgroup shared_multi_heap Shared multi-heap interface
- * @ingroup multi_heap
+ * @ingroup heaps
  * @{
  *
  * The shared multi-heap manager uses the multi-heap allocator to manage a set
@@ -58,7 +66,7 @@ extern "C" {
  * Enumeration type for some common memory region attributes.
  *
  */
-enum smh_reg_attr {
+enum shared_multi_heap_attr {
 	/** cacheable */
 	SMH_REG_ATTR_CACHEABLE,
 
@@ -118,7 +126,7 @@ int shared_multi_heap_pool_init(void);
  * @retval ptr		a valid pointer to heap memory.
  * @retval err		NULL if no memory is available.
  */
-void *shared_multi_heap_alloc(unsigned int attr, size_t bytes);
+void *shared_multi_heap_alloc(enum shared_multi_heap_attr attr, size_t bytes);
 
 /**
  * @brief Allocate aligned memory from the memory shared multi-heap pool
@@ -134,7 +142,8 @@ void *shared_multi_heap_alloc(unsigned int attr, size_t bytes);
  * @retval ptr		a valid pointer to heap memory.
  * @retval err		NULL if no memory is available.
  */
-void *shared_multi_heap_aligned_alloc(unsigned int attr, size_t align, size_t bytes);
+void *shared_multi_heap_aligned_alloc(enum shared_multi_heap_attr attr,
+				      size_t align, size_t bytes);
 
 /**
  * @brief Free memory from the shared multi-heap pool

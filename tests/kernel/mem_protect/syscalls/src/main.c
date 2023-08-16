@@ -36,6 +36,14 @@ char kernel_string[BUF_SIZE];
 char kernel_buf[BUF_SIZE];
 ZTEST_BMEM char user_string[BUF_SIZE];
 
+void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *pEsf)
+{
+	printk("Caught system error -- reason %d\n", reason);
+	printk("Unexpected fault during test\n");
+	printk("PROJECT EXECUTION FAILED\n");
+	k_fatal_halt(reason);
+}
+
 size_t z_impl_string_nlen(char *src, size_t maxlen, int *err)
 {
 	return z_user_string_nlen(src, maxlen, err);
@@ -328,11 +336,12 @@ ZTEST_USER(syscalls, test_more_args)
 		      "syscall didn't match impl");
 }
 
-#define NR_THREADS	(CONFIG_MP_NUM_CPUS * 4)
+#define NR_THREADS	(arch_num_cpus() * 4)
+#define MAX_NR_THREADS	(CONFIG_MP_MAX_NUM_CPUS * 4)
 #define STACK_SZ	(1024 + CONFIG_TEST_EXTRA_STACK_SIZE)
 
-struct k_thread torture_threads[NR_THREADS];
-K_THREAD_STACK_ARRAY_DEFINE(torture_stacks, NR_THREADS, STACK_SZ);
+struct k_thread torture_threads[MAX_NR_THREADS];
+K_THREAD_STACK_ARRAY_DEFINE(torture_stacks, MAX_NR_THREADS, STACK_SZ);
 
 void syscall_torture(void *arg1, void *arg2, void *arg3)
 {
@@ -376,7 +385,7 @@ ZTEST(syscalls, test_syscall_torture)
 	uintptr_t i;
 
 	printk("Running syscall torture test with %d threads on %d cpu(s)\n",
-	       NR_THREADS, CONFIG_MP_NUM_CPUS);
+	       NR_THREADS, arch_num_cpus());
 
 	for (i = 0; i < NR_THREADS; i++) {
 		k_thread_create(&torture_threads[i], torture_stacks[i],
@@ -437,7 +446,7 @@ ZTEST(syscalls, test_syscall_context)
 	k_thread_user_mode_enter(test_syscall_context_user, NULL, NULL, NULL);
 }
 
-K_HEAP_DEFINE(test_heap, BUF_SIZE * (4 * NR_THREADS));
+K_HEAP_DEFINE(test_heap, BUF_SIZE * (4 * MAX_NR_THREADS));
 
 void *syscalls_setup(void)
 {

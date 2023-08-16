@@ -5,9 +5,10 @@
  */
 
 #include <zephyr/device.h>
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-
 #include <soc.h>
+#include <hal/nrf_reset.h>
 
 LOG_MODULE_REGISTER(thingy53_board_init);
 
@@ -18,8 +19,10 @@ LOG_MODULE_REGISTER(thingy53_board_init);
  * on board regulators, board init (this), sensors init.
  */
 #if !defined(CONFIG_TRUSTED_EXECUTION_SECURE)
+#if defined(CONFIG_REGULATOR_FIXED)
 BUILD_ASSERT(CONFIG_THINGY53_INIT_PRIORITY > CONFIG_REGULATOR_FIXED_INIT_PRIORITY,
 	"CONFIG_THINGY53_INIT_PRIORITY must be higher than CONFIG_REGULATOR_FIXED_INIT_PRIORITY");
+#endif /* CONFIG_REGULATOR_FIXED */
 #if defined(CONFIG_IEEE802154_NRF5)
 BUILD_ASSERT(CONFIG_THINGY53_INIT_PRIORITY < CONFIG_IEEE802154_NRF5_INIT_PRIO,
 	"CONFIG_THINGY53_INIT_PRIORITY must be less than CONFIG_IEEE802154_NRF5_INIT_PRIO");
@@ -49,15 +52,14 @@ static void enable_cpunet(void)
 	 */
 
 	/* Release the Network MCU, 'Release force off signal' */
-	NRF_RESET->NETWORK.FORCEOFF = RESET_NETWORK_FORCEOFF_FORCEOFF_Release;
+	nrf_reset_network_force_off(NRF_RESET, false);
 
 	LOG_DBG("Network MCU released.");
 #endif /* !CONFIG_TRUSTED_EXECUTION_SECURE */
 }
 
-static int setup(const struct device *dev)
+static int setup(void)
 {
-	ARG_UNUSED(dev);
 
 #if !defined(CONFIG_TRUSTED_EXECUTION_SECURE)
 	if (IS_ENABLED(CONFIG_SENSOR)) {

@@ -83,6 +83,10 @@ static int mcp9808_channel_get(const struct device *dev,
 
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_AMBIENT_TEMP);
 
+	if (chan != SENSOR_CHAN_AMBIENT_TEMP) {
+		return -ENOTSUP;
+	}
+
 	val->val1 = temp / MCP9808_TEMP_SCALE_CEL;
 	temp -= val->val1 * MCP9808_TEMP_SCALE_CEL;
 	val->val2 = (temp * 1000000) / MCP9808_TEMP_SCALE_CEL;
@@ -134,7 +138,7 @@ int mcp9808_init(const struct device *dev)
 			   (.int_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, int_gpios, { 0 }),))	\
 	};											\
 												\
-	DEVICE_DT_INST_DEFINE(inst, mcp9808_init, NULL,						\
+	SENSOR_DEVICE_DT_INST_DEFINE(inst, mcp9808_init, NULL,					\
 			      &mcp9808_data_##inst, &mcp9808_config_##inst, POST_KERNEL,	\
 			      CONFIG_SENSOR_INIT_PRIORITY, &mcp9808_api_funcs);			\
 

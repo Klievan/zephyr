@@ -36,8 +36,15 @@ config CPU_AARCH32_CORTEX_R
 	select ARCH_HAS_USERSPACE if ARM_MPU
 	select ARCH_HAS_EXTRA_EXCEPTION_INFO
 	select ARCH_HAS_CODE_DATA_RELOCATION
+	select ARCH_HAS_NOCACHE_MEMORY_SUPPORT if ARM_MPU && CPU_HAS_ARM_MPU && CPU_HAS_DCACHE
 	help
 	  This option signifies the use of a CPU of the Cortex-R family.
+
+config ARM_ZIMAGE_HEADER
+	bool "zImage Header"
+	depends on CPU_AARCH32_CORTEX_R || CPU_AARCH32_CORTEX_A || CPU_CORTEX_M_HAS_VTOR
+	help
+	  This option adds a zImage Header.
 
 config CPU_AARCH32_CORTEX_A
 	bool
@@ -143,7 +150,7 @@ config RUNTIME_NMI
 	  The kernel provides a simple NMI handler that simply hangs in a tight
 	  loop if triggered. This fills the requirement that there must be an
 	  NMI handler installed when the CPU boots. If a custom handler is
-	  needed, enable this option and attach it via _NmiHandlerSet().
+	  needed, enable this option and attach it via z_arm_nmi_set_handler().
 
 config PLATFORM_SPECIFIC_INIT
 	bool "Platform (SOC) specific startup hook"
@@ -282,7 +289,7 @@ config FP16
 	help
 	  This option enables the half-precision (16-bit) floating point support
 	  via the `__fp16` (both IEEE and ARM alternative formats) and the
-	  `_Float16` (IEEE format only) types.
+	  `_Float16` (defined by ISO/IEC TS 18661-3:2015) types.
 
 choice
 	prompt "FP16 format"
@@ -304,6 +311,8 @@ config FP16_ALT
 	  support infinites or NaNs. Instead, the range of exponents is extended,
 	  so that this format can represent normalized values in the range of
 	  2^(-14) to 131008.
+
+	  Please note that Clang doesn't support the ARM alternative format.
 
 endchoice
 

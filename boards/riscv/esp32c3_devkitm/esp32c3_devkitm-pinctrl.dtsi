@@ -13,6 +13,7 @@
 	uart0_default: uart0_default {
 		group1 {
 			pinmux = <UART0_TX_GPIO21>;
+			output-high;
 		};
 		group2 {
 			pinmux = <UART0_RX_GPIO20>;
@@ -42,4 +43,10 @@
 		};
 	};
 
+	twai_default: twai_default {
+		group1 {
+			pinmux = <TWAI_TX_GPIO4>,
+				 <TWAI_RX_GPIO5>;
+		};
+	};
 };

@@ -52,12 +52,18 @@ these references:
 - `MIMXRT595-EVK Website`_
 - `MIMXRT595-EVK User Guide`_
 - `MIMXRT595-EVK Schematics`_
+- `MIMXRT595-EVK Debug Firmware`_
 
 Supported Features
 ==================
 
-The mimxrt595_evk board configuration supports the following hardware
-features:
+NXP considers the MIMXRT595-EVK as a superset board for the i.MX RT5xx
+family of MCUs.  This board is a focus for NXP's Full Platform Support for
+Zephyr, to better enable the entire RT5xx family.  NXP prioritizes enabling
+this board with new support for Zephyr features.  The mimxrt595_evk board
+configuration supports the hardware features below.  Another very similar
+board is the :ref:`mimxrt685_evk`, and that board may have additional features
+already supported, which can also be re-used on this mimxrt595_evk board:
 
 +-----------+------------+-------------------------------------+
 | Interface | Controller | Driver/Component                    |
@@ -72,7 +78,8 @@ features:
 +-----------+------------+-------------------------------------+
 | GPIO      | on-chip    | gpio                                |
 +-----------+------------+-------------------------------------+
-| USART     | on-chip    | serial port-polling                 |
+| USART     | on-chip    | serial port-polling;                |
+|           |            | serial port-interrupt               |
 +-----------+------------+-------------------------------------+
 | CLOCK     | on-chip    | clock_control                       |
 +-----------+------------+-------------------------------------+
@@ -91,6 +98,20 @@ features:
 | USB       | on-chip    | USB device                          |
 +-----------+------------+-------------------------------------+
 | FLEXSPI   | on-chip    | flash programming                   |
++-----------+------------+-------------------------------------+
+| RTC       | on-chip    | counter                             |
++-----------+------------+-------------------------------------+
+| PM        | on-chip    | power management; uses SoC sleep,   |
+|           |            | deep sleep and deep-powerdown modes |
++-----------+------------+-------------------------------------+
+| SDHC      | on-chip    | disk access (works with eMMC & SD)  |
++-----------+------------+-------------------------------------+
+| I2S       | on-chip    | i2s                                 |
++-----------+------------+-------------------------------------+
+| DISPLAY   | on-chip    | LCDIF; MIPI-DSI. Tested with        |
+|           |            | :ref:`rk055hdmipi4m`,               |
+|           |            | :ref:`rk055hdmipi4ma0`, and         |
+|           |            | :ref:`g1120b0mipi` display shields  |
 +-----------+------------+-------------------------------------+
 
 The default configuration can be found in the defconfig file:
@@ -135,6 +156,10 @@ functionality of a pin.
 | PIO1_3  | SPI             | SPI SCK                    |
 +---------+-----------------+----------------------------+
 | PIO1_6  | SPI             | SPI SSEL                   |
++---------+-----------------+----------------------------+
+| PIO0_5  | SCT0            | SCT0 GPI0                  |
++---------+-----------------+----------------------------+
+| PIO0_6  | SCT0            | SCT0 GPI1                  |
 +---------+-----------------+----------------------------+
 
 System Clock
@@ -183,6 +208,11 @@ configured by default to use the LPC-Link2.
         3. Connect the J-Link probe to J2 10-pin header.
 
         See :ref:`jlink-external-debug-probe` for more information.
+
+    .. group-tab:: Linkserver
+
+        1. Install the :ref:`linkserver-debug-host-tools` and make sure they are in your search path.
+        2. To update the debug firmware, please follow the instructions on `MIMXRT595-EVK Debug Firmware`
 
 Configuring a Console
 =====================
@@ -268,6 +298,9 @@ steps:
 
 .. _MIMXRT595-EVK User Guide:
    https://www.nxp.com/webapp/Download?colCode=MIMXRT595EVKHUG
+
+.. _MIMXRT595-EVK Debug Firmware:
+   https://www.nxp.com/docs/en/application-note/AN13206.pdf
 
 .. _MIMXRT595-EVK Schematics:
    https://www.nxp.com/downloads/en/schematics/MIMXRT595-EVK-DESIGN-FILES.zip

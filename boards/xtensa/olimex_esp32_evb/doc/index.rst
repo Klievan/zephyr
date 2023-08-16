@@ -92,7 +92,7 @@ System requirements
 *******************
 
 Prerequisites
--------------
+=============
 
 Espressif HAL requires WiFi and Bluetooth binary blobs in order work. Run the command
 below to retrieve those files.
@@ -106,7 +106,88 @@ below to retrieve those files.
    It is recommended running the command above after :file:`west update`.
 
 Building & Flashing
--------------------
+*******************
+
+ESP-IDF bootloader
+==================
+
+The board is using the ESP-IDF bootloader as the default 2nd stage bootloader.
+It is build as a subproject at each application build. No further attention
+is expected from the user.
+
+MCUboot bootloader
+==================
+
+User may choose to use MCUboot bootloader instead. In that case the bootloader
+must be build (and flash) at least once.
+
+There are two options to be used when building an application:
+
+1. Sysbuild
+2. Manual build
+
+.. note::
+
+   User can select the MCUboot bootloader by adding the following line
+   to the board default configuration file.
+   ```
+   CONFIG_BOOTLOADER_MCUBOOT=y
+   ```
+
+Sysbuild
+========
+
+The sysbuild makes possible to build and flash all necessary images needed to
+bootstrap the board with the EPS32 SoC.
+
+To build the sample application using sysbuild use the command:
+
+.. zephyr-app-commands::
+   :tool: west
+   :app: samples/hello_world
+   :board: olimex_esp32_evb
+   :goals: build
+   :west-args: --sysbuild
+   :compact:
+
+By default, the ESP32 sysbuild creates bootloader (MCUboot) and application
+images. But it can be configured to create other kind of images.
+
+Build directory structure created by sysbuild is different from traditional
+Zephyr build. Output is structured by the domain subdirectories:
+
+.. code-block::
+
+  build/
+  ├── hello_world
+  │   └── zephyr
+  │       ├── zephyr.elf
+  │       └── zephyr.bin
+  ├── mcuboot
+  │    └── zephyr
+  │       ├── zephyr.elf
+  │       └── zephyr.bin
+  └── domains.yaml
+
+.. note::
+
+   With ``--sysbuild`` option the bootloader will be re-build and re-flash
+   every time the pristine build is used.
+
+For more information about the system build please read the :ref:`sysbuild` documentation.
+
+Manual build
+============
+
+During the development cycle, it is intended to build & flash as quickly possible.
+For that reason, images can be build one at a time using traditional build.
+
+The instructions following are relevant for both manual build and sysbuild.
+The only difference is the structure of the build directory.
+
+.. note::
+
+   Remember that bootloader (MCUboot) needs to be flash at least once.
 
 Build and flash applications as usual (see :ref:`build_an_application` and
 :ref:`application_run` for more details).
@@ -140,20 +221,11 @@ message in the monitor:
    Hello World! olimex_esp32_evb
 
 Debugging
----------
+*********
 
 As with much custom hardware, the ESP32 modules require patches to
-OpenOCD that are not upstreamed. Espressif maintains their own fork of
-the project. The custom OpenOCD can be obtained by running the following extension:
-
-.. code-block:: console
-
-   west espressif install
-
-.. note::
-
-   By default, the OpenOCD will be downloaded and installed under $HOME/.espressif/tools/zephyr directory
-   (%USERPROFILE%/.espressif/tools/zephyr on Windows).
+OpenOCD that are not upstreamed yet. Espressif maintains their own fork of
+the project. The custom OpenOCD can be obtained at `OpenOCD ESP32`_
 
 The Zephyr SDK uses a bundled version of OpenOCD by default. You can overwrite that behavior by adding the
 ``-DOPENOCD=<path/to/bin/openocd> -DOPENOCD_DEFAULT_PATH=<path/to/openocd/share/openocd/scripts>``
@@ -174,6 +246,9 @@ You can debug an application in the usual way. Here is an example for the :ref:`
    :board: olimex_esp32_evb
    :goals: debug
 
+References
+**********
+
 .. _ESP32-EVB Website:
    https://www.olimex.com/Products/IoT/ESP32/ESP32-EVB/open-source-hardware
 
@@ -185,3 +260,6 @@ You can debug an application in the usual way. Here is an example for the :ref:`
 
 .. _ESP32-WROOM32-E/UE Datasheet:
    https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf
+
+.. _OpenOCD ESP32:
+   https://github.com/espressif/openocd-esp32/releases

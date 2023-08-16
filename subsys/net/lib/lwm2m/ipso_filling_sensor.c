@@ -48,8 +48,8 @@ static bool container_full[MAX_INSTANCE_COUNT];
 static double low_threshold[MAX_INSTANCE_COUNT];
 static bool container_empty[MAX_INSTANCE_COUNT];
 static double average_fill_speed[MAX_INSTANCE_COUNT];
-static int64_t forecast_full_date[MAX_INSTANCE_COUNT];
-static int64_t forecast_empty_date[MAX_INSTANCE_COUNT];
+static time_t forecast_full_date[MAX_INSTANCE_COUNT];
+static time_t forecast_empty_date[MAX_INSTANCE_COUNT];
 static bool container_out_of_location[MAX_INSTANCE_COUNT];
 static bool container_out_of_position[MAX_INSTANCE_COUNT];
 
@@ -228,7 +228,7 @@ static struct lwm2m_engine_obj_inst *filling_sensor_create(uint16_t obj_inst_id)
 	return &inst[index];
 }
 
-static int init(const struct device *dev)
+static int init(void)
 {
 	fill_sensor.obj_id = IPSO_OBJECT_ID;
 	fill_sensor.version_major = FILLING_VERSION_MAJOR;

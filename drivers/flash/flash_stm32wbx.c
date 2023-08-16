@@ -26,17 +26,6 @@ LOG_MODULE_REGISTER(LOG_DOMAIN);
 
 #define STM32WBX_PAGE_SHIFT	12
 
-/* offset and len must be aligned on 8 for write,
- * positive and not beyond end of flash
- */
-bool flash_stm32_valid_range(const struct device *dev, off_t offset,
-			     uint32_t len,
-			     bool write)
-{
-	return (!write || (offset % 8 == 0 && len % 8 == 0U)) &&
-	       flash_stm32_range_exists(dev, offset, len);
-}
-
 /*
  * Up to 255 4K pages
  */
@@ -84,9 +73,14 @@ static int write_dword(const struct device *dev, off_t offset, uint64_t val)
 		return -EIO;
 	}
 
-	/* Check if this double word is erased */
-	if (flash[0] != 0xFFFFFFFFUL ||
-	    flash[1] != 0xFFFFFFFFUL) {
+	/* Check if this double word is erased and value isn't 0.
+	 *
+	 * It is allowed to write only zeros over an already written dword
+	 * See 3.3.8 in reference manual.
+	 */
+	if ((flash[0] != 0xFFFFFFFFUL ||
+	     flash[1] != 0xFFFFFFFFUL) && val != 0UL) {
+		LOG_ERR("Word at offs %ld not erased", (long)offset);
 		return -EIO;
 	}
 

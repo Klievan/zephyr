@@ -12,8 +12,10 @@
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/peci.h>
 #include <zephyr/drivers/pinctrl.h>
+#include <zephyr/kernel.h>
 
 #include <zephyr/logging/log.h>
+#include <zephyr/irq.h>
 LOG_MODULE_REGISTER(peci_npcx, CONFIG_PECI_LOG_LEVEL);
 
 #define PECI_TIMEOUT		 K_MSEC(300)
@@ -78,7 +80,7 @@ static int peci_npcx_configure(const struct device *dev, uint32_t bitrate)
 	 * The unit of the bitrate is in Kbps, need to convert it to bps when
 	 * calculate the divider
 	 */
-	bit_rate_divider = ceiling_fraction(data->peci_src_clk_freq, bitrate * 1000 * 4) - 1;
+	bit_rate_divider = DIV_ROUND_UP(data->peci_src_clk_freq, bitrate * 1000 * 4) - 1;
 	/*
 	 * Make sure the divider doesn't exceed the max valid value and is not lower than the
 	 * minimal valid value.
@@ -242,13 +244,13 @@ static int peci_npcx_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	ret = clock_control_on(clk_dev, (clock_control_subsys_t *)&config->clk_cfg);
+	ret = clock_control_on(clk_dev, (clock_control_subsys_t)&config->clk_cfg);
 	if (ret < 0) {
 		LOG_ERR("Turn on PECI clock fail %d", ret);
 		return ret;
 	}
 
-	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t *)&config->clk_cfg,
+	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t)&config->clk_cfg,
 				     &data->peci_src_clk_freq);
 	if (ret < 0) {
 		LOG_ERR("Get PECI source clock rate error %d", ret);

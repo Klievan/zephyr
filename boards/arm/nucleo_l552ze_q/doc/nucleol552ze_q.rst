@@ -261,7 +261,7 @@ Default Zephyr Peripheral Mapping:
 - SPI_3_MOSI : PC12
 - PWM_2_CH1 : PA0
 - USER_PB : PC13
-- LD2 : PA5
+- LD2 : PB7
 - DAC1 : PA4
 - ADC1 : PC0
 
@@ -351,7 +351,7 @@ Finally, to flash the board, run:
 
 .. code-block:: bash
 
-   $ west flash --hex-file build/tfm_merged.hex
+   $ west flash
 
 Note: Check the ``build/tfm`` directory to ensure that the commands required by these scripts
 (``readlink``, etc.) are available on your system. Please also check ``STM32_Programmer_CLI``

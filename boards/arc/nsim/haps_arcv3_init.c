@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/arch/arc/v2/aux_regs.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/init.h>
 
@@ -29,9 +30,8 @@
 #define AUX_CLN_DATA			0x641
 
 
-static int haps_arcv3_init(const struct device *dev)
+static int haps_arcv3_init(void)
 {
-	ARG_UNUSED(dev);
 
 	z_arc_v2_aux_reg_write(AUX_CLN_ADDR, ARC_CLN_PER0_BASE);
 	z_arc_v2_aux_reg_write(AUX_CLN_DATA, 0xF00);

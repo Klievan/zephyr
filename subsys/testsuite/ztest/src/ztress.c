@@ -46,7 +46,7 @@ static uint32_t exec_cnt[CONFIG_ZTRESS_MAX_THREADS];
 static k_timeout_t backoff[CONFIG_ZTRESS_MAX_THREADS];
 static k_timeout_t init_backoff[CONFIG_ZTRESS_MAX_THREADS];
 K_THREAD_STACK_ARRAY_DEFINE(stacks, CONFIG_ZTRESS_MAX_THREADS, CONFIG_ZTRESS_STACK_SIZE);
-static k_tid_t idle_tid[CONFIG_MP_NUM_CPUS];
+static k_tid_t idle_tid[CONFIG_MP_MAX_NUM_CPUS];
 
 #define THREAD_NAME(i, _) STRINGIFY(ztress_##i)
 
@@ -120,8 +120,9 @@ static void control_load(void)
 	uint64_t idle_cycles = 0;
 	k_thread_runtime_stats_t rt_stats_all;
 	int err = 0;
+	unsigned int num_cpus = arch_num_cpus();
 
-	for (int i = 0; i < CONFIG_MP_NUM_CPUS; i++) {
+	for (int i = 0; i < num_cpus; i++) {
 		k_thread_runtime_stats_t thread_stats;
 
 		err = k_thread_runtime_stats_get(idle_tid[i], &thread_stats);
@@ -273,14 +274,14 @@ static void ztress_thread(void *data, void *prio, void *unused)
 static void thread_cb(const struct k_thread *cthread, void *user_data)
 {
 #define GET_IDLE_TID(i, tid) do {\
-	if (strcmp(tname, (CONFIG_MP_NUM_CPUS == 1) ? "idle" : "idle 0" STRINGIFY(i)) == 0) { \
+	if (strcmp(tname, (CONFIG_MP_MAX_NUM_CPUS == 1) ? "idle" : "idle 0" STRINGIFY(i)) == 0) { \
 		idle_tid[i] = tid; \
 	} \
 } while (0)
 
 	const char *tname = k_thread_name_get((struct k_thread *)cthread);
 
-	LISTIFY(CONFIG_MP_NUM_CPUS, GET_IDLE_TID, (;), (k_tid_t)cthread);
+	LISTIFY(CONFIG_MP_MAX_NUM_CPUS, GET_IDLE_TID, (;), (k_tid_t)cthread);
 }
 
 static void ztress_init(struct ztress_context_data *thread_data)
@@ -324,7 +325,7 @@ int ztress_execute(struct ztress_context_data *timer_data,
 	int old_prio = k_thread_priority_get(k_current_get());
 	int priority, ztress_prio = 0;
 
-	if (cnt > CONFIG_ZTRESS_MAX_THREADS) {
+	if ((cnt + (timer_data ? 1 : 0)) > CONFIG_ZTRESS_MAX_THREADS) {
 		return -EINVAL;
 	}
 
@@ -450,7 +451,7 @@ uint32_t ztress_optimized_ticks(uint32_t id)
  * cpu load (e.g. busy simulator) running that would influence the result.
  *
  */
-static int ztress_cpu_clock_to_sys_clock_check(const struct device *unused)
+static int ztress_cpu_clock_to_sys_clock_check(void)
 {
 	static volatile int cnt = 2000;
 	uint32_t t = sys_clock_tick_get_32();
@@ -460,12 +461,18 @@ static int ztress_cpu_clock_to_sys_clock_check(const struct device *unused)
 	}
 
 	t = sys_clock_tick_get_32() - t;
-	/* Threshold is arbitrary. Derived from nRF platorm where CPU runs at 64MHz and
-	 * system clock at 32kHz (sys clock interrupt every 1950 cycles). That ratio is
-	 * ok even for no optimization case.
+	/* Threshold is arbitrary. Derived from nRF platform where CPU runs
+	 * at 64MHz and system clock at 32kHz (sys clock interrupt every 1950
+	 * cycles). That ratio is ok even for no optimization case.
 	 * If some valid platforms are cut because of that, it can be changed.
 	 */
 	cpu_sys_clock_ok = t <= 12;
+
+	/* Read first random number. There are some generators which do not support
+	 * reading first random number from an interrupt context (initialization
+	 * is performed at the first read).
+	 */
+	(void)sys_rand32_get();
 
 	return 0;
 }

@@ -79,12 +79,34 @@ these references:
 - `MIMXRT1060-EVK Website`_
 - `MIMXRT1060-EVK User Guide`_
 - `MIMXRT1060-EVK Schematics`_
+- `MIMXRT1060-EVK Debug Firmware`_
+
+External Memory
+===============
+
+This platform has the following external memories:
+
++--------------------+------------+-------------------------------------+
+| Device             | Controller | Status                              |
++====================+============+=====================================+
+| IS25WP064AJBLE     | SEMC       | Enabled via device configuration    |
+|                    |            | data block, which sets up SEMC at   |
+|                    |            | boot time                           |
++--------------------+------------+-------------------------------------+
+| IS42S16160J        | FLEXSPI    | Enabled via flash configurationn    |
+|                    |            | block, which sets up FLEXSPI at     |
+|                    |            | boot time.                          |
++--------------------+------------+-------------------------------------+
 
 Supported Features
 ==================
 
-The mimxrt1060_evk board configuration supports the following hardware
-features:
+The mimxrt1060_evk board configuration supports the hardware features listed
+below.  For additional features not yet supported, please also refer to the
+:ref:`mimxrt1064_evk` , which is the superset board in NXP's i.MX RT10xx family.
+NXP prioritizes enabling the superset board with NXP's Full Platform Support for
+Zephyr.  Therefore, the mimxrt1064_evk board may have additional features
+already supported, which can also be re-used on this mimxrt1060_evk board:
 
 +-----------+------------+-------------------------------------+
 | Interface | Controller | Driver/Component                    |
@@ -280,8 +302,14 @@ The MIMXRT1060 SoC has five pairs of pinmux/gpio controllers.
 System Clock
 ============
 
-The MIMXRT1060 SoC is configured to use the 32 KHz low frequency oscillator on
-the board as a source for the GPT timer to generate a system clock.
+The MIMXRT1060 SoC is configured to use SysTick as the system clock source,
+running at 600MHz.
+
+When power management is enabled, the 32 KHz low frequency
+oscillator on the board will be used as a source for the GPT timer to
+generate a system clock. This clock enables lower power states, at the
+cost of reduced resolution
+
 
 Serial Port
 ===========
@@ -305,6 +333,11 @@ however the :ref:`pyocd-debug-host-tools` do not yet support programming the
 external flashes on this board so you must reconfigure the board for one of the
 following debug probes instead.
 
+.. _Using LinkServer:
+
+        1. Install the :ref:`linkserver-debug-host-tools` and make sure they are in your search path.
+        2. To update the debug firmware, please follow the instructions on `MIMXRT1060-EVK Debug Firmware`
+
 .. _Using J-Link RT1060:
 
 Using J-Link
@@ -315,8 +348,8 @@ path.
 
 There are two options: the onboard debug circuit can be updated with Segger
 J-Link firmware, or :ref:`jlink-external-debug-probe` can be attached to the
-EVK. See `Using J-Link with MIMXRT1060-EVK or MIMXRT1064-EVK`_ for more
-details.
+EVK. See `Using J-Link with MIMXRT1060-EVK or MIMXRT1064-EVK`_ or
+`Using J-Link with MIMXRT1060-EVKB`_ for more details.
 
 Configuring a Console
 =====================
@@ -419,6 +452,9 @@ connected to the EVK properly. See :ref:`Using J-Link RT1060` for more details.
 .. _MIMXRT1060-EVK User Guide:
    https://www.nxp.com/webapp/Download?colCode=MIMXRT10601064EKBHUG
 
+.. _MIMXRT1060-EVK Debug Firmware:
+   https://www.nxp.com/docs/en/application-note/AN13206.pdf
+
 .. _MIMXRT1060-EVK Schematics:
    https://www.nxp.com/webapp/Download?colCode=MIMXRT1060-EVK-DESIGNFILE-A3
 
@@ -433,3 +469,6 @@ connected to the EVK properly. See :ref:`Using J-Link RT1060` for more details.
 
 .. _Using J-Link with MIMXRT1060-EVK or MIMXRT1064-EVK:
    https://community.nxp.com/t5/i-MX-RT-Knowledge-Base/Using-J-Link-with-MIMXRT1060-EVK-or-MIMXRT1064-EVK/ta-p/1281149
+
+.. _Using J-Link with MIMXRT1060-EVKB:
+   https://community.nxp.com/t5/i-MX-RT-Knowledge-Base/Using-J-Link-with-MIMXRT1060-EVKB/ta-p/1452717

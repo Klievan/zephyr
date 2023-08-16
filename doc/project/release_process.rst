@@ -26,8 +26,8 @@ The Zephyr release model was loosely based on the Linux kernel model:
   changes such as bug fixes and documentation will be merged unless granted a
   special exemption by the Technical Steering Committee.
 
-  - Development phase: all changes are accepted (subject to approval from the
-    respective maintainers).
+  - Development phase: all changes are considered and merged, subject to
+    approval from the respective maintainers.
   - Stabilisation phase: the release manager creates a vN-rc1 tag and the tree
     enters the stabilization phase
   - CI sees the tag, builds and runs tests; Test teams analyse the report from the
@@ -55,7 +55,7 @@ sufficiently stable (and which is accepted by the maintainers and the wide commu
 merged into the mainline tree.  The bulk of changes for a new development cycle
 (and all of the major changes) will be merged during this time.
 
-The development phase lasts for approximately two months.  At the end of this time,
+The development phase lasts for approximately three months.  At the end of this time,
 the release owner will declare that the development phase is over and releases the first
 of the release candidates.  For the codebase release which is destined to be
 3.1.0, for example, the release which happens at the end of the development phase
@@ -178,6 +178,8 @@ The following syntax should be used for releases and tags in Git:
     :width: 80%
 
     Zephyr Code and Releases
+
+.. _release_process_lts:
 
 Long Term Support (LTS)
 =======================
@@ -369,28 +371,6 @@ steps:
             $ git tag -s -m "Zephyr 1.11.0-rc1" v1.11.0-rc1
             $ git push git@github.com:zephyrproject-rtos/zephyr.git v1.11.0-rc1
 
-        #. Once the tag is pushed, a github action will create a draft release
-           in Github with a shortlog since the last tag. The action will also
-           create a SPDX manifest of the Zephyr tree and will add the file as an
-           asset in the release.
-
-           Go to the draft release that was created and edit as needed. If this
-           step fails for a reason, it can be done manually following the steps
-           below:
-
-                #. Create a shortlog of changes between the previous release (use
-                   rc1..rc2 between release candidates)::
-
-                    $ git shortlog v1.10.0..v1.11.0-rc1
-
-                #. Find the new tag at the top of the releases page and edit the release
-                   with the ``Edit tag`` button with the following:
-
-                    * Name it ``Zephyr 1.11.0-rc1``
-                    * Copy the shortlog into the release notes textbox (*don't forget
-                      to quote it properly so it shows as unformatted text in Markdown*)
-                    * Check the "This is a pre-release" checkbox
-
         #. Send an email to the mailing lists (``announce`` and ``devel``)
            with a link to the release
 
@@ -420,41 +400,12 @@ steps:
             $ git tag -s -m "Zephyr 1.11.0" v1.11.0
             $ git push git@github.com:zephyrproject-rtos/zephyr.git v1.11.0
 
-            # This is the tag that will represent the release on GitHub, so that
-            # the file you can download is named ``zephyr-v1.11.0.zip`` and not
-            # just ``v1.11.0.zip``
-            $ git tag -s -m "Zephyr 1.11.0" zephyr-v1.11.0
-            $ git push git@github.com:zephyrproject-rtos/zephyr.git zephyr-v1.11.0
+        #. Find the new ``v1.11.0`` tag at the top of the releases page and
+           edit the release with the ``Edit tag`` button with the following:
 
-        #. Find the new ``zephyr-v1.11.0`` tag at the top of the releases page
-           and edit the release with the ``Edit tag`` button with the following:
-
-            * Name it ``Zephyr 1.11.0``
-            * Copy the full content of ``docs/releases/release-notes-1.11.rst``
-              into the release notes textbox
+            * Copy the overview of ``docs/releases/release-notes-1.11.rst``
+              into the release notes textbox and link to the full release notes
+              file on docs.zephyrproject.org.
 
         #. Send an email to the mailing lists (``announce`` and ``devel``) with a link
            to the release
-
-Listing all closed GitHub issues
-=================================
-
-The release notes for a final release contain the list of GitHub issues that
-have been closed during the development process of that release.
-
-In order to obtain the list of issues closed during the release development
-cycle you can do the following:
-
-#. Look for the last release before the current one and find the day it was
-   tagged::
-
-    $ git show -s --format=%ci zephyr-v1.10.0
-    tag zephyr-v1.10.0
-    Tagger: Kumar Gala <kumar.gala@linaro.org>
-
-    Zephyr 1.10.0
-    2017-12-08 13:32:22 -0600
-
-
-#. Use available release tools to list all the issues that have been closed
-   between that date and the day of the release.

@@ -16,8 +16,6 @@ module = USB_DEVICE
 module-str = usb device
 source "subsys/logging/Kconfig.template.log_config"
 
-source "samples/subsys/usb/usb_pid.Kconfig"
-
 config USB_DEVICE_VID
 	hex "USB Vendor ID"
 	default 0x2FE3
@@ -51,9 +49,11 @@ config USB_DEVICE_SN
 	  Hardware Information Driver (HWINFO).
 
 config USB_COMPOSITE_DEVICE
-	bool "Composite device driver"
+	bool "Use Interface Association Descriptor code triple"
 	help
-	  Enable composite USB device driver.
+	  This option modifies the code triple in the device descriptor
+	  to signal that one of the functions has two or more interfaces and
+	  uses the Interface Association Descriptor.
 
 config USB_MAX_NUM_TRANSFERS
     int "Set number of USB transfer data buffers"

@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(soc_mp, CONFIG_SOC_LOG_LEVEL);
 #include <zsr.h>
 #include <cavs-idc.h>
 #include <soc.h>
-#include <zephyr/arch/xtensa/cache.h>
+#include <zephyr/cache.h>
 #include <adsp_shim.h>
 #include <adsp_memory.h>
 #include <cpu_init.h>
@@ -50,7 +50,7 @@ uint32_t _loader_storage_manifest_start;
  * to be absolutely sure we don't try to IPI a CPU that isn't ready to
  * start, or else we'll launch it into garbage and crash the DSP.
  */
-bool soc_cpus_active[CONFIG_MP_NUM_CPUS];
+bool soc_cpus_active[CONFIG_MP_MAX_NUM_CPUS];
 
 #define NOP4 "nop; nop; nop; nop;"
 #define NOP32 NOP4 NOP4 NOP4 NOP4 NOP4 NOP4 NOP4 NOP4
@@ -63,7 +63,8 @@ bool soc_cpus_active[CONFIG_MP_NUM_CPUS];
  * Note that alignment is absolutely required: the IDC protocol passes
  * only the upper 30 bits of the address to the second CPU.
  */
-__asm__(".align 4                   \n\t"
+__asm__(".section .text.z_soc_mp_asm_entry, \"x\" \n\t"
+	".align 4                   \n\t"
 	".global z_soc_mp_asm_entry \n\t"
 	"z_soc_mp_asm_entry:        \n\t"
 	"  movi  a0, 0x4002f        \n\t" /* WOE | UM | INTLEVEL(max) */
@@ -92,26 +93,12 @@ __asm__(".align 4                   \n\t"
 	"  j soc_mp_idle            \n\t");
 
 #undef NOP128
-#undef NOP16
+#undef NOP32
 #undef NOP4
 
 __imr void z_mp_entry(void)
 {
 	cpu_early_init();
-
-	/* We don't know what the boot ROM (on pre-2.5 DSPs) might
-	 * have touched and we don't care.  Make sure it's not in our
-	 * local cache to be flushed accidentally later.
-	 *
-	 * Note that technically this is dropping our own (cached)
-	 * stack memory, which we don't have a guarantee the compiler
-	 * isn't using yet.  Manual inspection of generated code says
-	 * we're safe, but really we need a better solution here.
-	 */
-	if (!IS_ENABLED(CONFIG_SOC_INTEL_CAVS_V25)) {
-		z_xtensa_cache_flush_inv_all();
-	}
-
 	/* Set up the CPU pointer. */
 	_cpu_t *cpu = &_kernel.cpus[start_rec.cpu];
 
@@ -137,7 +124,7 @@ void arch_start_cpu(int cpu_num, k_thread_stack_t *stack, int sz,
 	start_rec.fn = fn;
 	start_rec.arg = arg;
 
-	z_mp_stack_top = Z_THREAD_STACK_BUFFER(stack) + sz;
+	z_mp_stack_top = Z_KERNEL_STACK_BUFFER(stack) + sz;
 
 	soc_start_core(cpu_num);
 }

@@ -16,22 +16,22 @@ const struct isotp_fc_opts fc_opts_0_5 = {.bs = 0, .stmin = 5};
 
 const struct isotp_msg_id rx_addr_8_0 = {
 	.std_id = 0x80,
-	.id_type = CAN_STANDARD_IDENTIFIER,
+	.ide = 0,
 	.use_ext_addr = 0
 };
 const struct isotp_msg_id tx_addr_8_0 = {
 	.std_id = 0x180,
-	.id_type = CAN_STANDARD_IDENTIFIER,
+	.ide = 0,
 	.use_ext_addr = 0
 };
 const struct isotp_msg_id rx_addr_0_5 = {
 	.std_id = 0x01,
-	.id_type = CAN_STANDARD_IDENTIFIER,
+	.ide = 0,
 	.use_ext_addr = 0
 };
 const struct isotp_msg_id tx_addr_0_5 = {
 	.std_id = 0x101,
-	.id_type = CAN_STANDARD_IDENTIFIER,
+	.ide = 0,
 	.use_ext_addr = 0
 };
 
@@ -141,7 +141,7 @@ void send_complette_cb(int error_nr, void *arg)
  * @brief Main application entry point.
  *
  */
-void main(void)
+int main(void)
 {
 	k_tid_t tid;
 	static struct isotp_send_ctx send_ctx_8_0;
@@ -151,7 +151,21 @@ void main(void)
 	can_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_canbus));
 	if (!device_is_ready(can_dev)) {
 		printk("CAN: Device driver not ready.\n");
-		return;
+		return 0;
+	}
+
+#ifdef CONFIG_SAMPLE_LOOPBACK_MODE
+	ret = can_set_mode(can_dev, CAN_MODE_LOOPBACK);
+	if (ret != 0) {
+		printk("CAN: Failed to set loopback mode [%d]", ret);
+		return 0;
+	}
+#endif /* CONFIG_SAMPLE_LOOPBACK_MODE */
+
+	ret = can_start(can_dev);
+	if (ret != 0) {
+		printk("CAN: Failed to start device [%d]\n", ret);
+		return 0;
 	}
 
 	tid = k_thread_create(&rx_8_0_thread_data, rx_8_0_thread_stack,

@@ -5,6 +5,7 @@
  */
 
 #include <freq.h>
+#include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/timer/nuclei-systimer.h>
 #include <zephyr/dt-bindings/i2c/i2c.h>
@@ -82,8 +83,10 @@
 			#size-cells = <1>;
 
 			flash0: flash@8000000 {
-				compatible = "soc-nv-flash";
+				compatible = "gd,gd32-nv-flash-v1", "soc-nv-flash";
 				write-block-size = <2>;
+				max-erase-time-ms = <300>;
+				page-size = <DT_SIZE_K(1)>;
 			};
 		};
 
@@ -111,6 +114,24 @@
 			interrupts = <58 0>;
 			clocks = <&cctl GD32_CLOCK_USART2>;
 			resets = <&rctl GD32_RESET_USART2>;
+			status = "disabled";
+		};
+
+		uart3: serial@40004c00 {
+			compatible = "gd,gd32-usart";
+			reg = <0x40004c00 0x400>;
+			interrupts = <71 0>;
+			clocks = <&cctl GD32_CLOCK_UART3>;
+			resets = <&rctl GD32_RESET_UART3>;
+			status = "disabled";
+		};
+
+		uart4: serial@40005000 {
+			compatible = "gd,gd32-usart";
+			reg = <0x40005000 0x400>;
+			interrupts = <72 0>;
+			clocks = <&cctl GD32_CLOCK_UART4>;
+			resets = <&rctl GD32_RESET_UART4>;
 			status = "disabled";
 		};
 
@@ -200,6 +221,21 @@
 			interrupt-names = "line0", "line1", "line2", "line3",
 					  "line4", "line5-9", "line10-15";
 			status = "okay";
+		};
+
+		fwdgt: watchdog@40003000 {
+			compatible = "gd,gd32-fwdgt";
+			reg = <0x40003000 0x400>;
+			status = "disabled";
+		};
+
+		wwdgt: watchdog@40002c00 {
+			compatible = "gd,gd32-wwdgt";
+			reg = <0x40002C00 0x400>;
+			clocks = <&cctl GD32_CLOCK_WWDGT>;
+			resets = <&rctl GD32_RESET_WWDGT>;
+			interrupts = <0 0>;
+			status = "disabled";
 		};
 
 		pinctrl: pin-controller@40010800 {
@@ -375,7 +411,8 @@
 				     <34 0>, <35 0>, <36 0>;
 			clocks = <&cctl GD32_CLOCK_DMA0>;
 			dma-channels = <7>;
-			#dma-cells = <1>;
+			gd,mem2mem;
+			#dma-cells = <2>;
 			status = "disabled";
 		};
 
@@ -384,9 +421,10 @@
 			reg = <0x40020400 0x400>;
 			interrupts = <75 0>, <76 0>, <77 0>, <78 0>,
 				     <79 0>;
-			clocks = <&cctl GD32_CLOCK_DMA0>;
+			clocks = <&cctl GD32_CLOCK_DMA1>;
 			dma-channels = <5>;
-			#dma-cells = <1>;
+			gd,mem2mem;
+			#dma-cells = <2>;
 			status = "disabled";
 		};
 	};

@@ -5,6 +5,7 @@
  */
 
 #include <zephyr/drivers/uart.h>
+#include <zephyr/kernel.h>
 #include <SEGGER_RTT.h>
 
 #define DT_DRV_COMPAT segger_rtt_uart
@@ -202,6 +203,7 @@ static const struct uart_driver_api uart_rtt_driver_api = {
 		.up_size = sizeof(uart_rtt##idx##_tx_buf),		    \
 		.down_buffer = uart_rtt##idx##_rx_buf,			    \
 		.down_size = sizeof(uart_rtt##idx##_rx_buf),		    \
+		.channel = idx,						    \
 	}
 
 #define UART_RTT_INIT(idx, config)					      \

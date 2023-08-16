@@ -6,7 +6,7 @@
 
 #define LOG_LEVEL CONFIG_LOG_DEFAULT_LEVEL
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(main);
+LOG_MODULE_REGISTER(spi_loopback);
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
@@ -29,8 +29,8 @@ LOG_MODULE_REGISTER(main);
 	       SPI_MODE_CPHA | SPI_WORD_SET(8) | SPI_LINES_SINGLE
 
 
-struct spi_dt_spec spi_fast = SPI_DT_SPEC_GET(SPI_FAST_DEV, SPI_OP, 0);
-struct spi_dt_spec spi_slow = SPI_DT_SPEC_GET(SPI_SLOW_DEV, SPI_OP, 0);
+static struct spi_dt_spec spi_fast = SPI_DT_SPEC_GET(SPI_FAST_DEV, SPI_OP, 0);
+static struct spi_dt_spec spi_slow = SPI_DT_SPEC_GET(SPI_SLOW_DEV, SPI_OP, 0);
 
 /* to run this test, connect MOSI pin to the MISO of the SPI */
 
@@ -47,22 +47,22 @@ static __aligned(32) char buffer2_tx[BUF2_SIZE] __used __attribute__((__section_
 static __aligned(32) char buffer2_rx[BUF2_SIZE] __used __attribute__((__section__(".nocache")));
 #else
 /* this src memory shall be in RAM to support using as a DMA source pointer.*/
-uint8_t buffer_tx[] = "0123456789abcdef\0";
-uint8_t buffer_rx[BUF_SIZE] = {};
+static uint8_t buffer_tx[] = "0123456789abcdef\0";
+static uint8_t buffer_rx[BUF_SIZE] = {};
 
-uint8_t buffer2_tx[] = "Thequickbrownfoxjumpsoverthelazydog\0";
-uint8_t buffer2_rx[BUF2_SIZE] = {};
+static uint8_t buffer2_tx[] = "Thequickbrownfoxjumpsoverthelazydog\0";
+static uint8_t buffer2_rx[BUF2_SIZE] = {};
 #endif
 
 /*
  * We need 5x(buffer size) + 1 to print a comma-separated list of each
  * byte in hex, plus a null.
  */
-uint8_t buffer_print_tx[BUF_SIZE * 5 + 1];
-uint8_t buffer_print_rx[BUF_SIZE * 5 + 1];
+static uint8_t buffer_print_tx[BUF_SIZE * 5 + 1];
+static uint8_t buffer_print_rx[BUF_SIZE * 5 + 1];
 
-uint8_t buffer_print_tx2[BUF2_SIZE * 5 + 1];
-uint8_t buffer_print_rx2[BUF2_SIZE * 5 + 1];
+static uint8_t buffer_print_tx2[BUF2_SIZE * 5 + 1];
+static uint8_t buffer_print_rx2[BUF2_SIZE * 5 + 1];
 
 static void to_display_format(const uint8_t *src, size_t size, char *dst)
 {
@@ -433,7 +433,7 @@ static K_SEM_DEFINE(caller, 0, 1);
 K_THREAD_STACK_DEFINE(spi_async_stack, STACK_SIZE);
 static int result = 1;
 
-static void spi_async_call_cb(struct k_poll_event *async_evt,
+static void spi_async_call_cb(struct k_poll_event *evt,
 			      struct k_sem *caller_sem,
 			      void *unused)
 {
@@ -442,15 +442,15 @@ static void spi_async_call_cb(struct k_poll_event *async_evt,
 	LOG_DBG("Polling...");
 
 	while (1) {
-		ret = k_poll(async_evt, 1, K_MSEC(200));
+		ret = k_poll(evt, 1, K_MSEC(200));
 		zassert_false(ret, "one or more events are not ready");
 
-		result = async_evt->signal->result;
+		result = evt->signal->result;
 		k_sem_give(caller_sem);
 
 		/* Reinitializing for next call */
-		async_evt->signal->signaled = 0U;
-		async_evt->state = K_POLL_STATE_NOT_READY;
+		evt->signal->signaled = 0U;
+		evt->state = K_POLL_STATE_NOT_READY;
 	}
 }
 
@@ -543,7 +543,7 @@ ZTEST(spi_loopback, test_spi_loopback)
 					  &async_evt, &caller, NULL,
 					  K_PRIO_COOP(7), 0, K_NO_WAIT);
 #endif
-	zassert_true(spi_is_ready(&spi_slow), "Slow spi lookback device is not ready");
+	zassert_true(spi_is_ready_dt(&spi_slow), "Slow spi lookback device is not ready");
 
 	LOG_INF("SPI test slow config");
 
@@ -560,7 +560,7 @@ ZTEST(spi_loopback, test_spi_loopback)
 		goto end;
 	}
 
-	zassert_true(spi_is_ready(&spi_fast), "Fast spi lookback device is not ready");
+	zassert_true(spi_is_ready_dt(&spi_fast), "Fast spi lookback device is not ready");
 
 	LOG_INF("SPI test fast config");
 

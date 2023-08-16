@@ -20,6 +20,8 @@
 #include "util/dbuf.h"
 #include "util/util.h"
 
+#include "pdu_df.h"
+#include "pdu_vendor.h"
 #include "pdu.h"
 
 #include "lll.h"
@@ -34,9 +36,6 @@
 #include "lll_df_internal.h"
 #include "lll_tim_internal.h"
 
-#define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
-#define LOG_MODULE_NAME bt_ctlr_lll_periph
-#include "common/log.h"
 #include <soc.h>
 #include "hal/debug.h"
 
@@ -114,6 +113,7 @@ static int prepare_cb(struct lll_prepare_param *p)
 	struct ull_hdr *ull;
 	uint32_t remainder;
 	uint32_t hcto;
+	uint32_t ret;
 
 	DEBUG_RADIO_START_S(1);
 
@@ -225,7 +225,7 @@ static int prepare_cb(struct lll_prepare_param *p)
 		df_rx_params = dbuf_latest_get(&df_rx_cfg->hdr, NULL);
 
 		if (df_rx_params->is_enabled == true) {
-			lll_df_conf_cte_rx_enable(df_rx_params->slot_durations,
+			(void)lll_df_conf_cte_rx_enable(df_rx_params->slot_durations,
 						  df_rx_params->ant_sw_len, df_rx_params->ant_ids,
 						  data_chan_use, CTE_INFO_IN_S1_BYTE, lll->phy_rx);
 			lll->df_rx_cfg.chan = data_chan_use;
@@ -323,19 +323,22 @@ static int prepare_cb(struct lll_prepare_param *p)
 
 #if defined(CONFIG_BT_CTLR_XTAL_ADVANCED) && \
 	(EVENT_OVERHEAD_PREEMPT_US <= EVENT_OVERHEAD_PREEMPT_MIN_US)
+	uint32_t overhead;
+
+	overhead = lll_preempt_calc(ull, (TICKER_ID_CONN_BASE + lll->handle), ticks_at_event);
 	/* check if preempt to start has changed */
-	if (lll_preempt_calc(ull, (TICKER_ID_CONN_BASE + lll->handle),
-			     ticks_at_event)) {
+	if (overhead) {
+		LL_ASSERT_OVERHEAD(overhead);
+
 		radio_isr_set(lll_isr_abort, lll);
 		radio_disable();
-	} else
-#endif /* CONFIG_BT_CTLR_XTAL_ADVANCED */
-	{
-		uint32_t ret;
 
-		ret = lll_prepare_done(lll);
-		LL_ASSERT(!ret);
+		return -ECANCELED;
 	}
+#endif /* CONFIG_BT_CTLR_XTAL_ADVANCED */
+
+	ret = lll_prepare_done(lll);
+	LL_ASSERT(!ret);
 
 	DEBUG_RADIO_START_S(1);
 

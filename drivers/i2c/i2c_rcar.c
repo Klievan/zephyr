@@ -15,6 +15,7 @@
 #include <zephyr/drivers/clock_control/renesas_cpg_mssr.h>
 
 #include <zephyr/logging/log.h>
+#include <zephyr/irq.h>
 LOG_MODULE_REGISTER(i2c_rcar);
 
 #include "i2c-priv.h"
@@ -326,7 +327,7 @@ static int i2c_rcar_init(const struct device *dev)
 	}
 
 	ret = clock_control_on(config->clock_dev,
-			       (clock_control_subsys_t *)&config->mod_clk);
+			       (clock_control_subsys_t)&config->mod_clk);
 
 	if (ret != 0) {
 		return ret;

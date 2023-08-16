@@ -6,10 +6,16 @@
 
 zephyr_compile_definitions(FSL_SDK_DRIVER_QUICK_ACCESS_ENABLE)
 
+zephyr_compile_definitions_ifdef(CONFIG_USB_DEVICE_DRIVER USB_STACK_USE_DEDICATED_RAM=1)
+
 zephyr_sources(
   soc.c
   flash_clock_setup.c
   )
+
+zephyr_sources_ifdef(CONFIG_PM power.c)
+
+zephyr_sources_ifdef(CONFIG_POWEROFF poweroff.c)
 
 zephyr_library_include_directories(
   ${ZEPHYR_BASE}/kernel/include
@@ -22,4 +28,4 @@ zephyr_linker_sources_ifdef(CONFIG_NXP_IMX_RT5XX_BOOT_HEADER
 zephyr_linker_sources_ifdef(CONFIG_USB_DEVICE_DRIVER
   SECTIONS usb.ld)
 
-zephyr_code_relocate(flash_clock_setup.c SRAM)
+zephyr_code_relocate(FILES flash_clock_setup.c LOCATION RAM)

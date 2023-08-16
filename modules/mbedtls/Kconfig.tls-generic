@@ -69,7 +69,7 @@ config MBEDTLS_KEY_EXCHANGE_DHE_PSK_ENABLED
 
 config MBEDTLS_KEY_EXCHANGE_ECDHE_PSK_ENABLED
 	bool "ECDHE-PSK based ciphersuite modes"
-	select MBEDTLS_ECDH_C
+	depends on MBEDTLS_ECDH_C
 
 config MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED
 	bool "RSA-PSK based ciphersuite modes"
@@ -97,42 +97,40 @@ config MBEDTLS_KEY_EXCHANGE_DHE_RSA_ENABLED
 
 config MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
 	bool "ECDHE-RSA based ciphersuite modes"
-	select MBEDTLS_ECDH_C
+	depends on MBEDTLS_ECDH_C
 
 config MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
 	bool "ECDHE-ECDSA based ciphersuite modes"
-	select MBEDTLS_ECDH_C
-	select MBEDTLS_ECDSA_C
+	depends on MBEDTLS_ECDH_C && MBEDTLS_ECDSA_C
 
 config MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA_ENABLED
 	bool "ECDH-ECDSA based ciphersuite modes"
-	select MBEDTLS_ECDH_C
-	select MBEDTLS_ECDSA_C
+	depends on MBEDTLS_ECDH_C && MBEDTLS_ECDSA_C
 
 config MBEDTLS_ECDSA_DETERMINISTIC
 	bool "Deterministic ECDSA (RFC 6979)"
 
 config MBEDTLS_KEY_EXCHANGE_ECDH_RSA_ENABLED
 	bool "ECDH-RSA based ciphersuite modes"
-	select MBEDTLS_ECDH_C
+	depends on MBEDTLS_ECDH_C
 
 config MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED
 	bool "ECJPAKE based ciphersuite modes"
-	select MBEDTLS_ECJPAKE_C
+	depends on MBEDTLS_ECJPAKE_C
 
 comment "Elliptic curve libraries"
 
 config MBEDTLS_ECDH_C
 	bool "Elliptic curve Diffie-Hellman library"
-	select MBEDTLS_ECP_C
+	depends on MBEDTLS_ECP_C
 
 config MBEDTLS_ECDSA_C
 	bool "Elliptic curve DSA library"
-	select MBEDTLS_ECP_C
+	depends on MBEDTLS_ECP_C
 
 config MBEDTLS_ECJPAKE_C
 	bool "Elliptic curve J-PAKE library"
-	select MBEDTLS_ECP_C
+	depends on MBEDTLS_ECP_C
 
 config MBEDTLS_ECP_C
 	bool "Elliptic curve over GF(p) library"
@@ -251,6 +249,15 @@ config MBEDTLS_AES_ROM_TABLES
 	depends on MBEDTLS_CIPHER_AES_ENABLED
 	bool "Use precomputed AES tables stored in ROM."
 	default y
+
+config MBEDTLS_AES_FEWER_TABLES
+	depends on MBEDTLS_CIPHER_AES_ENABLED
+	bool "Reduce the size of precomputed AES tables by ~6kB"
+	help
+	  Reduce the size of the AES tables at a tradeoff of more
+	  arithmetic operations at runtime. Specifically 4 table
+	  lookups are converted to 1 table lookup, 3 additions
+	  and 6 bit shifts.
 
 config MBEDTLS_CIPHER_CAMELLIA_ENABLED
 	bool "Camellia block cipher"
@@ -415,6 +422,7 @@ config MBEDTLS_SERVER_NAME_INDICATION
 
 config MBEDTLS_PK_WRITE_C
 	bool "The generic public (asymmetric) key writer"
+	default y if MBEDTLS_PSA_CRYPTO_C
 	help
 	  Enable generic public key write functions.
 
@@ -459,5 +467,10 @@ config MBEDTLS_PSA_CRYPTO_C
 	depends on MBEDTLS_ENTROPY_ENABLED
 	depends on MBEDTLS_CTR_DRBG_ENABLED || MBEDTLS_HMAC_DRBG_ENABLED
 	default y if UOSCORE || UEDHOC
+
+config MBEDTLS_LMS
+	bool "Support LMS signature schemes"
+	depends on MBEDTLS_PSA_CRYPTO_C
+	depends on MBEDTLS_HASH_SHA256_ENABLED
 
 endmenu

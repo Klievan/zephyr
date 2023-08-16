@@ -7,11 +7,13 @@
 #define DT_DRV_COMPAT ti_stellaris_gpio
 
 #include <errno.h>
+#include <zephyr/arch/cpu.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/irq.h>
 #include <soc.h>
 #include <zephyr/sys/sys_io.h>
-#include "gpio_utils.h"
+#include <zephyr/drivers/gpio/gpio_utils.h>
 
 typedef void (*config_func_t)(const struct device *dev);
 
@@ -104,6 +106,34 @@ static int gpio_stellaris_configure(const struct device *dev,
 
 	return 0;
 }
+
+#ifdef CONFIG_GPIO_GET_CONFIG
+static int gpio_stellaris_get_config(const struct device *dev,
+				 gpio_pin_t pin,
+				 gpio_flags_t *out_flags)
+{
+	const struct gpio_stellaris_config *cfg = dev->config;
+	uint32_t base = cfg->base;
+	gpio_flags_t flags = 0;
+	mm_reg_t mask_addr;
+
+	if (sys_test_bit(GPIO_REG_ADDR(base, GPIO_DEN_OFFSET), pin) == 0) {
+		flags = GPIO_DISCONNECTED;
+	} else if (sys_test_bit(GPIO_REG_ADDR(base, GPIO_DIR_OFFSET), pin)) {
+		mask_addr = GPIO_RW_MASK_ADDR(base, GPIO_DATA_OFFSET, BIT(pin));
+
+		if (sys_test_bit(mask_addr, pin)) {
+			flags |= GPIO_OUTPUT_HIGH;
+		} else {
+			flags |= GPIO_OUTPUT_LOW;
+		}
+	} else {
+		flags = GPIO_INPUT;
+	}
+	*out_flags = flags;
+	return 0;
+}
+#endif
 
 static int gpio_stellaris_port_get_raw(const struct device *dev,
 				       uint32_t *value)
@@ -219,6 +249,9 @@ static int gpio_stellaris_manage_callback(const struct device *dev,
 
 static const struct gpio_driver_api gpio_stellaris_driver_api = {
 	.pin_configure = gpio_stellaris_configure,
+#ifdef CONFIG_GPIO_GET_CONFIG
+	.pin_get_config = gpio_stellaris_get_config,
+#endif
 	.port_get_raw = gpio_stellaris_port_get_raw,
 	.port_set_masked_raw = gpio_stellaris_port_set_masked_raw,
 	.port_set_bits_raw = gpio_stellaris_port_set_bits_raw,

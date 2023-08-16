@@ -12,6 +12,7 @@
 #include <zephyr/types.h>
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/kernel.h>
 
 #define HMC5883L_REG_CONFIG_A           0x00
 #define HMC5883L_ODR_SHIFT              2
@@ -51,7 +52,7 @@ struct hmc5883l_data {
 	const struct device *dev;
 	struct gpio_callback gpio_cb;
 
-	struct sensor_trigger data_ready_trigger;
+	const struct sensor_trigger *data_ready_trigger;
 	sensor_trigger_handler_t data_ready_handler;
 
 #if defined(CONFIG_HMC5883L_TRIGGER_OWN_THREAD)

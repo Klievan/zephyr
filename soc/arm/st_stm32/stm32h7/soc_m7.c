@@ -17,12 +17,11 @@
 #include <stm32_ll_pwr.h>
 #include <stm32_ll_rcc.h>
 #include <stm32_ll_system.h>
-#include <zephyr/arch/cpu.h>
 #include <zephyr/arch/arm/aarch32/cortex_m/cmsis.h>
 #include "stm32_hsem.h"
 
 #if defined(CONFIG_STM32H7_DUAL_CORE)
-static int stm32h7_m4_wakeup(const struct device *arg)
+static int stm32h7_m4_wakeup(void)
 {
 
 	/* HW semaphore and SysCfg Clock enable */
@@ -35,7 +34,7 @@ static int stm32h7_m4_wakeup(const struct device *arg)
 		 * then Cortex-M7 takes HSEM so that CM4 can continue running.
 		 */
 		LL_HSEM_1StepLock(HSEM, CFG_HW_ENTRY_STOP_MODE_SEMID);
-	} else {
+	} else if (IS_ENABLED(CONFIG_STM32H7_BOOT_M4_AT_INIT)) {
 		/* CM4 is not started at boot, start it now */
 		LL_RCC_ForceCM4Boot();
 	}
@@ -52,14 +51,8 @@ static int stm32h7_m4_wakeup(const struct device *arg)
  *
  * @return 0
  */
-static int stm32h7_init(const struct device *arg)
+static int stm32h7_init(void)
 {
-	uint32_t key;
-
-	ARG_UNUSED(arg);
-
-	key = irq_lock();
-
 	SCB_EnableICache();
 
 	if (IS_ENABLED(CONFIG_DCACHE)) {
@@ -67,13 +60,6 @@ static int stm32h7_init(const struct device *arg)
 			SCB_EnableDCache();
 		}
 	}
-
-	/* Install default handler that simply resets the CPU
-	 * if configured in the kernel, NOP otherwise
-	 */
-	NMI_INIT();
-
-	irq_unlock(key);
 
 	/* Update CMSIS SystemCoreClock variable (HCLK) */
 	/* At reset, system core clock is set to 64 MHz from HSI */

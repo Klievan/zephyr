@@ -19,6 +19,7 @@
 #include <gd32_i2c.h>
 
 #include <zephyr/logging/log.h>
+#include <zephyr/irq.h>
 LOG_MODULE_REGISTER(i2c_gd32, CONFIG_I2C_LOG_LEVEL);
 
 #include "i2c-priv.h"
@@ -503,7 +504,7 @@ static int i2c_gd32_configure(const struct device *dev,
 	I2C_CTL0(cfg->reg) &= ~I2C_CTL0_I2CEN;
 
 	(void)clock_control_get_rate(GD32_CLOCK_CONTROLLER,
-				     (clock_control_subsys_t *)&cfg->clkid,
+				     (clock_control_subsys_t)&cfg->clkid,
 				     &pclk1);
 
 	/* i2c clock frequency, us */
@@ -667,7 +668,7 @@ static int i2c_gd32_init(const struct device *dev)
 	k_sem_init(&data->sync_sem, 0, K_SEM_MAX_LIMIT);
 
 	(void)clock_control_on(GD32_CLOCK_CONTROLLER,
-			       (clock_control_subsys_t *)&cfg->clkid);
+			       (clock_control_subsys_t)&cfg->clkid);
 
 	(void)reset_line_toggle_dt(&cfg->reset);
 

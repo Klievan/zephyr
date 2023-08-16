@@ -168,7 +168,7 @@
  *  @return 48-bit integer in big-endian format.
  */
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#ifdef CONFIG_LITTLE_ENDIAN
 #define sys_le16_to_cpu(val) (val)
 #define sys_cpu_to_le16(val) (val)
 #define sys_le24_to_cpu(val) (val)
@@ -189,7 +189,7 @@
 #define sys_cpu_to_be48(val) __bswap_48(val)
 #define sys_be64_to_cpu(val) __bswap_64(val)
 #define sys_cpu_to_be64(val) __bswap_64(val)
-#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#else
 #define sys_le16_to_cpu(val) __bswap_16(val)
 #define sys_cpu_to_le16(val) __bswap_16(val)
 #define sys_le24_to_cpu(val) __bswap_24(val)
@@ -210,8 +210,6 @@
 #define sys_cpu_to_be48(val) (val)
 #define sys_be64_to_cpu(val) (val)
 #define sys_cpu_to_be64(val) (val)
-#else
-#error "Unknown byte order"
 #endif
 
 /**
@@ -455,12 +453,12 @@ static inline uint16_t sys_get_le16(const uint8_t src[2])
 }
 
 /**
- *  @brief Get a 24-bit integer stored in big-endian format.
+ *  @brief Get a 24-bit integer stored in little-endian format.
  *
- *  Get a 24-bit integer, stored in big-endian format in a potentially
+ *  Get a 24-bit integer, stored in little-endian format in a potentially
  *  unaligned memory location, and convert it to the host endianness.
  *
- *  @param src Location of the big-endian 24-bit integer to get.
+ *  @param src Location of the little-endian 24-bit integer to get.
  *
  *  @return 24-bit integer in host endianness.
  */

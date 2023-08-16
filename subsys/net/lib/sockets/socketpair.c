@@ -4,14 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <fcntl.h>
-
-/* Zephyr headers */
-#include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_spair, CONFIG_NET_SOCKETS_LOG_LEVEL);
-
 #include <zephyr/kernel.h>
 #include <zephyr/net/socket.h>
+#include <zephyr/posix/fcntl.h>
 #include <zephyr/syscall_handler.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/fdtable.h>
@@ -60,6 +55,11 @@ __net_socket struct spair {
 	/** buffer for @a recv_q recv_q */
 	uint8_t buf[CONFIG_NET_SOCKETPAIR_BUFFER_SIZE];
 };
+
+#ifdef CONFIG_NET_SOCKETPAIR_STATIC
+K_MEM_SLAB_DEFINE_STATIC(spair_slab, sizeof(struct spair), CONFIG_NET_SOCKETPAIR_MAX * 2,
+			 __alignof__(struct spair));
+#endif /* CONFIG_NET_SOCKETPAIR_STATIC */
 
 /* forward declaration */
 static const struct socket_op_vtable spair_fd_op_vtable;
@@ -193,7 +193,9 @@ static void spair_delete(struct spair *spair)
 
 	/* ensure no private information is released to the memory pool */
 	memset(spair, 0, sizeof(*spair));
-#ifdef CONFIG_USERSPACE
+#ifdef CONFIG_NET_SOCKETPAIR_STATIC
+	k_mem_slab_free(&spair_slab, (void **) &spair);
+#elif CONFIG_USERSPACE
 	k_object_free(spair);
 #else
 	k_free(spair);
@@ -218,7 +220,14 @@ static struct spair *spair_new(void)
 	struct spair *spair;
 	int res;
 
-#ifdef CONFIG_USERSPACE
+#ifdef CONFIG_NET_SOCKETPAIR_STATIC
+
+	res = k_mem_slab_alloc(&spair_slab, (void **) &spair, K_NO_WAIT);
+	if (res != 0) {
+		spair = NULL;
+	}
+
+#elif CONFIG_USERSPACE
 	struct z_object *zo = z_dynamic_object_create(sizeof(*spair));
 
 	if (zo == NULL) {
@@ -460,6 +469,11 @@ static ssize_t spair_write(void *obj, const void *buffer, size_t count)
 	}
 
 	if (will_block) {
+		if (k_is_in_isr()) {
+			errno = EAGAIN;
+			res = -1;
+			goto out;
+		}
 
 		for (int signaled = false, result = -1; !signaled;
 			result = -1) {
@@ -646,6 +660,11 @@ static ssize_t spair_read(void *obj, void *buffer, size_t count)
 	}
 
 	if (will_block) {
+		if (k_is_in_isr()) {
+			errno = EAGAIN;
+			res = -1;
+			goto out;
+		}
 
 		for (int signaled = false, result = -1; !signaled;
 			result = -1) {

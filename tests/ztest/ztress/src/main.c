@@ -23,7 +23,7 @@ bool ztress_handler_busy(void *user_data, uint32_t cnt, bool last, int prio)
 	return true;
 }
 
-static void test_timeout(void)
+ZTEST(ztress, test_timeout)
 {
 	int64_t d;
 	uint32_t repeat = 1000000;
@@ -40,7 +40,7 @@ static void test_timeout(void)
 		       ZTRESS_THREAD(ztress_handler_busy, NULL, repeat, 1000, t));
 
 	d = k_uptime_get() - d;
-	zassert_within(d, 1000, 200, NULL);
+	zassert_within(d, 1000, 200);
 
 	/* Set of two threads and timer. Test is setup manually, without helper macro. */
 	struct ztress_context_data timer_data =
@@ -52,8 +52,9 @@ static void test_timeout(void)
 
 	d = k_uptime_get();
 	err = ztress_execute(&timer_data, thread_data, ARRAY_SIZE(thread_data));
+	zassert_equal(err, 0, "ztress_execute failed (err: %d)", err);
 	d = k_uptime_get() - d;
-	zassert_within(d, timeout + 500, 500, NULL);
+	zassert_within(d, timeout + 500, 500);
 
 	ztress_set_timeout(K_NO_WAIT);
 }
@@ -63,7 +64,7 @@ static void timeout_abort(struct k_timer *timer)
 	ztress_abort();
 }
 
-static void test_abort(void)
+ZTEST(ztress, test_abort)
 {
 	struct k_timer timer;
 	uint32_t repeat = 10000000;
@@ -74,11 +75,11 @@ static void test_abort(void)
 	ZTRESS_EXECUTE(ZTRESS_THREAD(ztress_handler_busy, NULL, repeat, 0, K_MSEC(1)),
 		       ZTRESS_THREAD(ztress_handler_busy, NULL, repeat, 0, K_MSEC(1)));
 
-	zassert_true(ztress_exec_count(0) < repeat, NULL);
-	zassert_true(ztress_exec_count(1) < repeat, NULL);
+	zassert_true(ztress_exec_count(0) < repeat);
+	zassert_true(ztress_exec_count(1) < repeat);
 }
 
-static void test_repeat_completion(void)
+ZTEST(ztress, test_repeat_completion)
 {
 	uint32_t repeat = 10;
 
@@ -89,7 +90,7 @@ static void test_repeat_completion(void)
 	for (int i = 0; i < 2; i++) {
 		uint32_t exec_cnt = ztress_exec_count(i);
 
-		zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10, NULL);
+		zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10);
 	}
 
 	/* Set of two threads and timer */
@@ -100,11 +101,11 @@ static void test_repeat_completion(void)
 	for (int i = 0; i < 3; i++) {
 		uint32_t exec_cnt = ztress_exec_count(i);
 
-		zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10, NULL);
+		zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10);
 	}
 }
 
-static void test_no_context_requirements(void)
+ZTEST(ztress, test_no_context_requirements)
 {
 	uint32_t repeat = 10;
 
@@ -126,17 +127,28 @@ static void test_no_context_requirements(void)
 		       ZTRESS_THREAD(ztress_handler_busy, NULL, 0, 0, Z_TIMEOUT_TICKS(30)));
 
 	exec_cnt = ztress_exec_count(1);
-	zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10, NULL);
+	zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10);
 }
 
-void test_main(void)
+ZTEST(ztress, test_too_many_threads)
 {
-	ztest_test_suite(ztress_tests,
-			 ztest_unit_test(test_timeout),
-			 ztest_unit_test(test_abort),
-			 ztest_unit_test(test_repeat_completion),
-			 ztest_unit_test(test_no_context_requirements)
-			 );
+	uint32_t repeat = 10;
+	k_timeout_t t = Z_TIMEOUT_TICKS(20);
+	int err;
 
-	ztest_run_test_suite(ztress_tests);
+	/* Negative check on too many threads set and a timer.
+	 * Assuming ZTRESS_MAX_THREADS=3
+	 */
+	struct ztress_context_data timer_data =
+		ZTRESS_CONTEXT_INITIALIZER(ztress_handler_busy, NULL, repeat, 0, t);
+	struct ztress_context_data thread_data[] = {
+		ZTRESS_CONTEXT_INITIALIZER(ztress_handler_busy, NULL, repeat, 1000, t),
+		ZTRESS_CONTEXT_INITIALIZER(ztress_handler_busy, NULL, repeat, 1000, t),
+		ZTRESS_CONTEXT_INITIALIZER(ztress_handler_busy, NULL, repeat, 1000, t)
+	};
+
+	err = ztress_execute(&timer_data, thread_data, ARRAY_SIZE(thread_data));
+	zassert_equal(err, -EINVAL, "ztress_execute: unexpected err=%d (expected -EINVAL)", err);
 }
+
+ZTEST_SUITE(ztress, NULL, NULL, NULL, NULL, NULL);

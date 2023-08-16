@@ -162,7 +162,7 @@ static int pms7003_channel_get(const struct device *dev,
 		val->val1 = drv_data->pm_10;
 		val->val2 = 0;
 	} else {
-		return -EINVAL;
+		return -ENOTSUP;
 	}
 	return 0;
 }
@@ -191,7 +191,7 @@ static int pms7003_init(const struct device *dev)
 		.uart_dev = DEVICE_DT_GET(DT_INST_BUS(inst)),					\
 	};											\
 												\
-	DEVICE_DT_INST_DEFINE(inst, &pms7003_init, NULL,					\
+	SENSOR_DEVICE_DT_INST_DEFINE(inst, &pms7003_init, NULL,					\
 			      &pms7003_data_##inst, &pms7003_config_##inst, POST_KERNEL,	\
 			      CONFIG_SENSOR_INIT_PRIORITY, &pms7003_api);			\
 

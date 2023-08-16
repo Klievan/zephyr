@@ -1,7 +1,7 @@
 .. _cy8ckit_062_ble:
 
-PSoC63 BLE Pioneer Kit
-######################
+INFINEON PSoC63 BLE Pioneer Kit
+###############################
 
 Overview
 ********
@@ -131,6 +131,18 @@ and UART6 on SCB6 are configured. SCB5 is connected to the onboard KitProg2's
 USB-UART Bridge working as a serial console interface. SCB6 to P13_0, P13_1
 pins on the J3 of the Arduino Uno R3 compatible PSoC6 I/O header for general
 purposes.
+
+OpenOCD Installation
+====================
+
+To get the OpenOCD package, it is required that you
+
+1. Download the software ModusToolbox 3.1. https://softwaretools.infineon.com/tools/com.ifx.tb.tool.modustoolbox
+2. Once downloaded add the path to access the Scripts folder provided by ModusToolbox
+   export PATH=$PATH:/path/to/ModusToolbox/tools_3.1/openocd/scripts
+3. Add the OpenOCD executable file's path to west flash/debug.
+4. Flash using: west flash --openocd path/to/infineon/openocd/bin/openocd
+5. Debug using: west debug --openocd path/to/infineon/openocd/bin/openocd
 
 Programming and Debugging
 *************************

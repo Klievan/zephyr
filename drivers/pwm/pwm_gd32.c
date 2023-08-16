@@ -155,7 +155,7 @@ static int pwm_gd32_init(const struct device *dev)
 	int ret;
 
 	(void)clock_control_on(GD32_CLOCK_CONTROLLER,
-			       (clock_control_subsys_t *)&config->clkid);
+			       (clock_control_subsys_t)&config->clkid);
 
 	(void)reset_line_toggle_dt(&config->reset);
 
@@ -167,7 +167,7 @@ static int pwm_gd32_init(const struct device *dev)
 
 	/* cache timer clock value */
 	(void)clock_control_get_rate(GD32_CLOCK_CONTROLLER,
-				     (clock_control_subsys_t *)&config->clkid,
+				     (clock_control_subsys_t)&config->clkid,
 				     &data->tim_clk);
 
 	/* basic timer operation: edge aligned, up counting, shadowed CAR */
@@ -204,7 +204,7 @@ static int pwm_gd32_init(const struct device *dev)
 									       \
 	DEVICE_DT_INST_DEFINE(i, &pwm_gd32_init, NULL, &pwm_gd32_data_##i,     \
 			      &pwm_gd32_config_##i, POST_KERNEL,	       \
-			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE,	       \
+			      CONFIG_PWM_INIT_PRIORITY,			       \
 			      &pwm_gd32_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(PWM_GD32_DEFINE)

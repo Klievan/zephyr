@@ -78,11 +78,12 @@ static int rtt_console_out(int character)
 	return character;
 }
 
-static int rtt_console_init(const struct device *d)
+static int rtt_console_init(void)
 {
-	ARG_UNUSED(d);
 
+#ifdef CONFIG_PRINTK
 	__printk_hook_install(rtt_console_out);
+#endif
 	__stdout_hook_install(rtt_console_out);
 
 	return 0;

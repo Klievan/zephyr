@@ -13,7 +13,6 @@
 #include <zephyr/init.h>
 #include <stm32_ll_bus.h>
 #include <stm32_ll_pwr.h>
-#include <zephyr/arch/cpu.h>
 #include <zephyr/arch/arm/aarch32/cortex_m/cmsis.h>
 #include <stm32l5xx_ll_icache.h>
 #include <zephyr/logging/log.h>
@@ -29,25 +28,12 @@ LOG_MODULE_REGISTER(soc);
  *
  * @return 0
  */
-static int stm32l5_init(const struct device *arg)
+static int stm32l5_init(void)
 {
-	uint32_t key;
-
-	ARG_UNUSED(arg);
-
 	/* Enable ICACHE */
 	while (LL_ICACHE_IsActiveFlag_BUSY()) {
 	}
 	LL_ICACHE_Enable();
-
-	key = irq_lock();
-
-	/* Install default handler that simply resets the CPU
-	 * if configured in the kernel, NOP otherwise
-	 */
-	NMI_INIT();
-
-	irq_unlock(key);
 
 	/* Update CMSIS SystemCoreClock variable (HCLK) */
 	/* At reset, system core clock is set to 4 MHz from MSI */

@@ -20,7 +20,6 @@
 #include <zephyr/drivers/uart.h>
 #include <fsl_common.h>
 #include <fsl_clock.h>
-#include <zephyr/arch/cpu.h>
 #include <zephyr/arch/arm/aarch32/cortex_m/cmsis.h>
 
 #define LPUART0SRC_OSCERCLK     (1)
@@ -111,7 +110,7 @@ static ALWAYS_INLINE void clock_init(void)
 #if CONFIG_ETH_MCUX_RMII_EXT_CLK
 	CLOCK_SetRmii0Clock(1);
 #endif
-#if CONFIG_USB_KINETIS
+#if CONFIG_USB_KINETIS || CONFIG_UDC_KINETIS
 	CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcPll0,
 				DT_PROP(DT_PATH(cpus, cpu_0), clock_frequency));
 #endif
@@ -127,17 +126,11 @@ static ALWAYS_INLINE void clock_init(void)
  * @return 0
  */
 
-static int k6x_init(const struct device *arg)
+static int k6x_init(void)
 {
-	ARG_UNUSED(arg);
-
-	unsigned int oldLevel; /* old interrupt lock level */
 #if !defined(CONFIG_ARM_MPU)
 	uint32_t temp_reg;
 #endif /* !CONFIG_ARM_MPU */
-
-	/* disable interrupts */
-	oldLevel = irq_lock();
 
 	/* release I/O power hold to allow normal run state */
 	PMC->REGSC |= PMC_REGSC_ACKISO_MASK;
@@ -169,15 +162,16 @@ static int k6x_init(const struct device *arg)
 	/* Initialize PLL/system clock up to 180 MHz */
 	clock_init();
 
-	/*
-	 * install default handler that simply resets the CPU
-	 * if configured in the kernel, NOP otherwise
-	 */
-	NMI_INIT();
-
-	/* restore interrupt state */
-	irq_unlock(oldLevel);
 	return 0;
 }
+
+#ifdef CONFIG_PLATFORM_SPECIFIC_INIT
+
+void z_arm_platform_init(void)
+{
+	SystemInit();
+}
+
+#endif /* CONFIG_PLATFORM_SPECIFIC_INIT */
 
 SYS_INIT(k6x_init, PRE_KERNEL_1, 0);

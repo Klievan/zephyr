@@ -235,10 +235,6 @@ static struct net_nbr *nbr_nexthop_get(struct net_if *iface,
 		return NULL;
 	}
 
-	NET_ASSERT(nbr->idx != NET_NBR_LLADDR_UNKNOWN,
-		   "Nexthop %s not in neighbor cache!",
-		   net_sprint_ipv6_addr(addr));
-
 	net_nbr_ref(nbr);
 
 	NET_DBG("[%d] nbr %p iface %p IPv6 %s",
@@ -367,14 +363,12 @@ struct net_route_entry *net_route_add(struct net_if *iface,
 		goto exit;
 	}
 
-	nexthop_lladdr = net_nbr_get_lladdr(nbr_nexthop->idx);
-
-	NET_ASSERT(nexthop_lladdr);
-
-	NET_DBG("Nexthop %s lladdr is %s",
-		net_sprint_ipv6_addr(nexthop),
-		net_sprint_ll_addr(nexthop_lladdr->addr,
-					      nexthop_lladdr->len));
+	if (nbr_nexthop && nbr_nexthop->idx != NET_NBR_LLADDR_UNKNOWN) {
+		nexthop_lladdr = net_nbr_get_lladdr(nbr_nexthop->idx);
+		NET_ASSERT(nexthop_lladdr);
+		NET_DBG("Nexthop %s lladdr is %s", net_sprint_ipv6_addr(nexthop),
+			net_sprint_ll_addr(nexthop_lladdr->addr, nexthop_lladdr->len));
+	}
 
 	route = net_route_lookup(iface, addr);
 	if (route) {
@@ -417,18 +411,18 @@ struct net_route_entry *net_route_add(struct net_if *iface,
 				     node);
 
 		if (CONFIG_NET_ROUTE_LOG_LEVEL >= LOG_LEVEL_DBG) {
-			struct in6_addr *tmp;
+			struct in6_addr *in6_addr_tmp;
 			struct net_linkaddr_storage *llstorage;
 
-			tmp = net_route_get_nexthop(route);
-			nbr = net_ipv6_nbr_lookup(iface, tmp);
+			in6_addr_tmp = net_route_get_nexthop(route);
+			nbr = net_ipv6_nbr_lookup(iface, in6_addr_tmp);
 			if (nbr) {
 				llstorage = net_nbr_get_lladdr(nbr->idx);
 
 				NET_DBG("Removing the oldest route %s "
 					"via %s [%s]",
 					net_sprint_ipv6_addr(&route->addr),
-					net_sprint_ipv6_addr(tmp),
+					net_sprint_ipv6_addr(in6_addr_tmp),
 					net_sprint_ll_addr(llstorage->addr,
 							   llstorage->len));
 			}
@@ -752,12 +746,6 @@ struct in6_addr *net_route_get_nexthop(struct net_route_entry *route)
 	SYS_SLIST_FOR_EACH_CONTAINER(&route->nexthop, nexthop_route, node) {
 		struct in6_addr *addr;
 
-		NET_ASSERT(nexthop_route->nbr->idx != NET_NBR_LLADDR_UNKNOWN);
-
-		if (nexthop_route->nbr->idx == NET_NBR_LLADDR_UNKNOWN) {
-			continue;
-		}
-
 		ipv6_nbr_data = net_ipv6_nbr_data(nexthop_route->nbr);
 		if (ipv6_nbr_data) {
 			addr = &ipv6_nbr_data->addr;
@@ -888,10 +876,13 @@ struct net_route_entry_mcast *net_route_mcast_add(struct net_if *iface,
 {
 	int i;
 
+	k_mutex_lock(&lock, K_FOREVER);
+
 	if ((!net_if_flag_is_set(iface, NET_IF_FORWARD_MULTICASTS)) ||
 			(!net_ipv6_is_addr_mcast(group)) ||
 			(net_ipv6_is_addr_mcast_iface(group)) ||
 			(net_ipv6_is_addr_mcast_link(group))) {
+		k_mutex_unlock(&lock);
 		return NULL;
 	}
 
@@ -910,6 +901,7 @@ struct net_route_entry_mcast *net_route_mcast_add(struct net_if *iface,
 		}
 	}
 
+	k_mutex_unlock(&lock);
 	return NULL;
 }
 

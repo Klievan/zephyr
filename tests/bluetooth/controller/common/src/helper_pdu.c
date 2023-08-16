@@ -6,7 +6,7 @@
  */
 
 #include "zephyr/types.h"
-#include "ztest.h"
+#include "zephyr/ztest.h"
 
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/sys/byteorder.h>
@@ -20,13 +20,15 @@
 #include "util/memq.h"
 #include "util/dbuf.h"
 
+#include "pdu_df.h"
+#include "lll/pdu_vendor.h"
 #include "pdu.h"
 #include "ll.h"
 #include "ll_settings.h"
 #include "ll_feat.h"
 
 #include "lll.h"
-#include "lll_df_types.h"
+#include "lll/lll_df_types.h"
 #include "lll_conn_iso.h"
 
 #include "lll_conn.h"
@@ -480,6 +482,28 @@ void helper_pdu_encode_cis_terminate_ind(struct pdu_data *pdu, void *param)
 	pdu->llctrl.cis_terminate_ind.error_code = p->error_code;
 }
 
+void helper_pdu_encode_sca_req(struct pdu_data *pdu, void *param)
+{
+	struct pdu_data_llctrl_clock_accuracy_req *p = param;
+
+	pdu->ll_id = PDU_DATA_LLID_CTRL;
+	pdu->len = offsetof(struct pdu_data_llctrl, clock_accuracy_req) +
+		sizeof(struct pdu_data_llctrl_clock_accuracy_req);
+	pdu->llctrl.opcode = PDU_DATA_LLCTRL_TYPE_CLOCK_ACCURACY_REQ;
+	pdu->llctrl.clock_accuracy_req.sca = p->sca;
+}
+
+void helper_pdu_encode_sca_rsp(struct pdu_data *pdu, void *param)
+{
+	struct pdu_data_llctrl_clock_accuracy_rsp *p = param;
+
+	pdu->ll_id = PDU_DATA_LLID_CTRL;
+	pdu->len = offsetof(struct pdu_data_llctrl, clock_accuracy_rsp) +
+		sizeof(struct pdu_data_llctrl_clock_accuracy_rsp);
+	pdu->llctrl.opcode = PDU_DATA_LLCTRL_TYPE_CLOCK_ACCURACY_RSP;
+	pdu->llctrl.clock_accuracy_rsp.sca = p->sca;
+}
+
 void helper_pdu_verify_version_ind(const char *file, uint32_t line, struct pdu_data *pdu,
 				   void *param)
 {
@@ -518,7 +542,7 @@ void helper_pdu_verify_feature_req(const char *file, uint32_t line, struct pdu_d
 {
 	struct pdu_data_llctrl_feature_req *feature_req = param;
 
-	zassert_equal(pdu->ll_id, PDU_DATA_LLID_CTRL, NULL);
+	zassert_equal(pdu->ll_id, PDU_DATA_LLID_CTRL);
 	zassert_equal(pdu->llctrl.opcode, PDU_DATA_LLCTRL_TYPE_FEATURE_REQ,
 		      "Wrong opcode.\nCalled at %s:%d\n", file, line);
 
@@ -535,8 +559,8 @@ void helper_pdu_verify_peripheral_feature_req(const char *file, uint32_t line, s
 {
 	struct pdu_data_llctrl_feature_req *feature_req = param;
 
-	zassert_equal(pdu->ll_id, PDU_DATA_LLID_CTRL, NULL);
-	zassert_equal(pdu->llctrl.opcode, PDU_DATA_LLCTRL_TYPE_PER_INIT_FEAT_XCHG, NULL);
+	zassert_equal(pdu->ll_id, PDU_DATA_LLID_CTRL);
+	zassert_equal(pdu->llctrl.opcode, PDU_DATA_LLCTRL_TYPE_PER_INIT_FEAT_XCHG);
 
 	for (int counter = 0; counter < 8; counter++) {
 		uint8_t expected_value = feature_req->features[counter];
@@ -551,7 +575,7 @@ void helper_pdu_verify_feature_rsp(const char *file, uint32_t line, struct pdu_d
 {
 	struct pdu_data_llctrl_feature_rsp *feature_rsp = param;
 
-	zassert_equal(pdu->ll_id, PDU_DATA_LLID_CTRL, NULL);
+	zassert_equal(pdu->ll_id, PDU_DATA_LLID_CTRL);
 	zassert_equal(pdu->llctrl.opcode, PDU_DATA_LLCTRL_TYPE_FEATURE_RSP,
 		      "Response: %d Expected: %d\n", pdu->llctrl.opcode,
 		      PDU_DATA_LLCTRL_TYPE_FEATURE_RSP);
@@ -761,6 +785,18 @@ void helper_node_verify_phy_update(const char *file, uint32_t line, struct node_
 	zassert_equal(rx->hdr.type, NODE_RX_TYPE_PHY_UPDATE,
 		      "Not a PHY_UPDATE node.\nCalled at %s:%d\n", file, line);
 	zassert_equal(pdu->status, p->status, "Status mismatch.\nCalled at %s:%d\n", file, line);
+}
+
+void helper_node_verify_peer_sca_update(const char *file, uint32_t line, struct node_rx_pdu *rx,
+				   void *param)
+{
+	struct node_rx_sca *pdu = (struct node_rx_sca *)rx->pdu;
+	struct node_rx_sca *p = param;
+
+	zassert_equal(rx->hdr.type, NODE_RX_TYPE_REQ_PEER_SCA_COMPLETE,
+		      "Not an SCA node.\nCalled at %s:%d\n", file, line);
+	zassert_equal(pdu->status, p->status, "Status mismatch.\nCalled at %s:%d\n", file, line);
+	zassert_equal(pdu->sca, p->sca, "SCA mismatch.\nCalled at %s:%d\n", file, line);
 }
 
 void helper_pdu_verify_unknown_rsp(const char *file, uint32_t line, struct pdu_data *pdu,
@@ -1200,4 +1236,20 @@ void helper_pdu_verify_cis_terminate_ind(const char *file, uint32_t line, struct
 		      "CIS ID mismatch.\nCalled at %s:%d\n", file, line);
 	zassert_equal(pdu->llctrl.cis_terminate_ind.error_code, p->error_code,
 		      "Error code mismatch.\nCalled at %s:%d\n", file, line);
+}
+
+void helper_pdu_verify_sca_req(const char *file, uint32_t line, struct pdu_data *pdu, void *param)
+{
+	zassert_equal(pdu->ll_id, PDU_DATA_LLID_CTRL, "Not a Control PDU.\nCalled at %s:%d\n", file,
+		      line);
+	zassert_equal(pdu->llctrl.opcode, PDU_DATA_LLCTRL_TYPE_CLOCK_ACCURACY_REQ,
+		      "Not a LL_CLOCK_ACCURACY_REQ. Called at %s:%d\n", file, line);
+}
+
+void helper_pdu_verify_sca_rsp(const char *file, uint32_t line, struct pdu_data *pdu, void *param)
+{
+	zassert_equal(pdu->ll_id, PDU_DATA_LLID_CTRL, "Not a Control PDU.\nCalled at %s:%d\n", file,
+		      line);
+	zassert_equal(pdu->llctrl.opcode, PDU_DATA_LLCTRL_TYPE_CLOCK_ACCURACY_RSP,
+		      "Not a LL_CLOCK_ACCURACY_RSP.\nCalled at %s:%d\n", file, line);
 }

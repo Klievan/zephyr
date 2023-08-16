@@ -322,8 +322,6 @@ ZTEST_USER_OR_NOT(mutex_complex, test_mutex)
 	int priority[4] = { 9, 8, 7, 5 };
 	int droppri[3] = { 8, 8, 9 };
 
-	TC_START("Test kernel Mutex API");
-
 	PRINT_LINE;
 
 	/*
@@ -343,7 +341,7 @@ ZTEST_USER_OR_NOT(mutex_complex, test_mutex)
 			      priority[i], rv);
 
 		/* Catch any errors from other threads */
-		zassert_equal(tc_rc, TC_PASS, NULL);
+		zassert_equal(tc_rc, TC_PASS);
 	}
 
 	/* ~ 4 seconds have passed */
@@ -375,7 +373,7 @@ ZTEST_USER_OR_NOT(mutex_complex, test_mutex)
 			      droppri[i], rv);
 		sys_mutex_unlock(givemutex[i]);
 
-		zassert_equal(tc_rc, TC_PASS, NULL);
+		zassert_equal(tc_rc, TC_PASS);
 	}
 
 	rv = k_thread_priority_get(k_current_get());
@@ -383,7 +381,7 @@ ZTEST_USER_OR_NOT(mutex_complex, test_mutex)
 
 	k_sleep(K_SECONDS(1));     /* Give thread_11 time to run */
 
-	zassert_equal(tc_rc, TC_PASS, NULL);
+	zassert_equal(tc_rc, TC_PASS);
 
 	/* test recursive locking using a private mutex */
 
@@ -399,7 +397,7 @@ ZTEST_USER_OR_NOT(mutex_complex, test_mutex)
 	k_thread_create(&thread_12_thread_data, thread_12_stack_area, STACKSIZE,
 			(k_thread_entry_t)thread_12, NULL, NULL, NULL,
 			K_PRIO_PREEMPT(12), PARTICIPANT_THREAD_OPTIONS, K_NO_WAIT);
-	k_sleep(K_MSEC(1));     /* Give thread_12 a chance to block on the mutex */
+	k_sleep(K_MSEC(5));     /* Give thread_12 a chance to block on the mutex */
 
 	sys_mutex_unlock(&private_mutex);
 	sys_mutex_unlock(&private_mutex); /* thread_12 should now have lock */

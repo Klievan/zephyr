@@ -139,7 +139,7 @@ file available in the tree to your local configuration directory to override the
 builtin table::
 
         # On Linux and MacOS
-        cp ZEPHYR_BASE/subsys/tracing/sysview/SYSVIEW_Zephyr.txt ~/.config/SEGGER/
+        cp $ZEPHYR_BASE/subsys/tracing/sysview/SYSVIEW_Zephyr.txt ~/.config/SEGGER/
 
 User-Defined Tracing
 ====================
@@ -368,6 +368,7 @@ their usage. Currently, the following lists can be enabled::
   struct k_mbox *_track_list_k_mbox;
   struct k_pipe *_track_list_k_pipe;
   struct k_queue *_track_list_k_queue;
+  struct k_event *_track_list_k_event;
 
 Those global variables are the head of each list - they can be traversed
 with the help of macro ``SYS_PORT_TRACK_NEXT``. For instance, to traverse

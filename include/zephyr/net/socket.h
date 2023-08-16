@@ -27,6 +27,7 @@
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/dns_resolve.h>
 #include <zephyr/net/socket_select.h>
+#include <zephyr/sys/iterable_sections.h>
 #include <stdlib.h>
 
 #ifdef __cplusplus
@@ -458,8 +459,7 @@ __syscall int zsock_fcntl(int sock, int cmd, int flags);
  * @rst
  * See `POSIX.1-2017 article
  * <http://pubs.opengroup.org/onlinepubs/9699919799/functions/poll.html>`__
- * for normative description. (In Zephyr this function works only with
- * sockets, not arbitrary file descriptors.)
+ * for normative description.
  * This function is also exposed as ``poll()``
  * if :kconfig:option:`CONFIG_NET_SOCKETS_POSIX_NAMES` is defined (in which case
  * it may conflict with generic POSIX ``poll()`` function).
@@ -952,8 +952,15 @@ struct ifreq {
 #define SO_KEEPALIVE 9
 /** sockopt: Place out-of-band data into receive stream (ignored, for compatibility) */
 #define SO_OOBINLINE 10
+/** sockopt: Socket lingers on close (ignored, for compatibility) */
+#define SO_LINGER 13
 /** sockopt: Allow multiple sockets to reuse a single port (ignored, for compatibility) */
 #define SO_REUSEPORT 15
+
+/** sockopt: Receive low watermark (ignored, for compatibility) */
+#define SO_RCVLOWAT 18
+/** sockopt: Send low watermark (ignored, for compatibility) */
+#define SO_SNDLOWAT 19
 
 /**
  * sockopt: Receive timeout
@@ -983,9 +990,16 @@ struct ifreq {
 /** sockopt: Disable TCP buffering (ignored, for compatibility) */
 #define TCP_NODELAY 1
 
+/* Socket options for IPPROTO_IP level */
+/** sockopt: Set or receive the Type-Of-Service value for an outgoing packet. */
+#define IP_TOS 1
+
 /* Socket options for IPPROTO_IPV6 level */
 /** sockopt: Don't support IPv4 access (ignored, for compatibility) */
 #define IPV6_V6ONLY 26
+
+/** sockopt: Set or receive the traffic class value for an outgoing packet. */
+#define IPV6_TCLASS 67
 
 /** sockopt: Socket priority */
 #define SO_PRIORITY 12
@@ -997,6 +1011,9 @@ struct ifreq {
 /* Socket options for SOCKS5 proxy */
 /** sockopt: Enable SOCKS5 for Socket */
 #define SO_SOCKS5 60
+
+/** listen: The maximum backlog queue length (ignored, for compatibility) */
+#define SOMAXCONN 128
 
 /** @cond INTERNAL_HIDDEN */
 /**

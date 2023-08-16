@@ -28,7 +28,7 @@ K_SEM_DEFINE(test_continue, 0, 1);
 struct k_thread service_manager;
 struct k_thread service1;
 struct k_thread service2;
-struct k_thread client;
+struct k_thread client_thread;
 static ZTEST_DMEM unsigned long __aligned(4) service1_buf[MSGQ_LEN];
 static ZTEST_DMEM unsigned long __aligned(4) service2_buf[MSGQ_LEN];
 static ZTEST_DMEM unsigned long __aligned(4) client_buf[MSGQ_LEN * 2];
@@ -194,13 +194,13 @@ static void client_entry(void *p1, void *p2, void *p3)
 	/* query services */
 	k_msgq_put(&manager_q, client_data, K_NO_WAIT);
 	ret = k_msgq_get(&client_msgq, service_data, K_FOREVER);
-	zassert_equal(ret, 0, NULL);
+	zassert_equal(ret, 0);
 
 	service1q = (struct k_msgq *)service_data[0];
 	service2q = (struct k_msgq *)service_data[1];
 	/* all services should be running */
-	zassert_equal(service1q, &service1_msgq, NULL);
-	zassert_equal(service2q, &service2_msgq, NULL);
+	zassert_equal(service1q, &service1_msgq);
+	zassert_equal(service2q, &service2_msgq);
 	/* let the test thread continue */
 	k_sem_give(&test_continue);
 
@@ -254,7 +254,7 @@ static void start_client(void)
 
 	int pri = k_thread_priority_get(k_current_get());
 
-	tclient = k_thread_create(&client, client_stack, STACK_SIZE,
+	tclient = k_thread_create(&client_thread, client_stack, STACK_SIZE,
 				  client_entry, NULL, NULL, NULL, pri,
 				  0, K_NO_WAIT);
 }

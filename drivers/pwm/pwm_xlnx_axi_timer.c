@@ -6,6 +6,7 @@
 
 #define DT_DRV_COMPAT xlnx_xps_timer_1_00_a_pwm
 
+#include <zephyr/arch/cpu.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/pwm.h>
 #include <zephyr/sys/sys_io.h>
@@ -171,11 +172,6 @@ static int xlnx_axi_timer_get_cycles_per_sec(const struct device *dev,
 	return 0;
 }
 
-static int xlnx_axi_timer_init(const struct device *dev)
-{
-	return 0;
-}
-
 static const struct pwm_driver_api xlnx_axi_timer_driver_api = {
 	.set_cycles = xlnx_axi_timer_set_cycles,
 	.get_cycles_per_sec = xlnx_axi_timer_get_cycles_per_sec,
@@ -199,11 +195,10 @@ static const struct pwm_driver_api xlnx_axi_timer_driver_api = {
 			GENMASK(DT_INST_PROP(n, xlnx_count_width) - 1, 0), \
 	};								\
 									\
-	DEVICE_DT_INST_DEFINE(n, &xlnx_axi_timer_init,			\
-			    NULL, NULL,					\
+	DEVICE_DT_INST_DEFINE(n, NULL, NULL, NULL,			\
 			    &xlnx_axi_timer_config_##n,			\
 			    POST_KERNEL,				\
-			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
+			    CONFIG_PWM_INIT_PRIORITY,			\
 			    &xlnx_axi_timer_driver_api)
 
 DT_INST_FOREACH_STATUS_OKAY(XLNX_AXI_TIMER_INIT);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NXP
+ * Copyright 2020,2023 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,6 +7,7 @@
 #define DT_DRV_COMPAT	nxp_imx_flexspi_nor
 
 #include <zephyr/drivers/flash.h>
+#include <zephyr/irq.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 #include "spi_nor.h"
@@ -46,6 +47,7 @@ enum {
 	READ_STATUS,
 	WRITE_ENABLE,
 	ERASE_SECTOR,
+	ERASE_BLOCK,
 	PAGE_PROGRAM_INPUT,
 	PAGE_PROGRAM_QUAD_INPUT,
 	READ_ID,
@@ -88,6 +90,11 @@ static const uint32_t flash_flexspi_nor_lut[][4] = {
 
 	[ERASE_SECTOR] = {
 		FLEXSPI_LUT_SEQ(kFLEXSPI_Command_SDR,       kFLEXSPI_1PAD, SPI_NOR_CMD_SE,
+				kFLEXSPI_Command_RADDR_SDR, kFLEXSPI_1PAD, 0x18),
+	},
+
+	[ERASE_BLOCK] = {
+		FLEXSPI_LUT_SEQ(kFLEXSPI_Command_SDR,       kFLEXSPI_1PAD, SPI_NOR_CMD_BE,
 				kFLEXSPI_Command_RADDR_SDR, kFLEXSPI_1PAD, 0x18),
 	},
 
@@ -251,6 +258,26 @@ static int flash_flexspi_nor_erase_sector(const struct device *dev,
 	return memc_flexspi_transfer(data->controller, &transfer);
 }
 
+static int flash_flexspi_nor_erase_block(const struct device *dev,
+					  off_t offset)
+{
+	struct flash_flexspi_nor_data *data = dev->data;
+
+	flexspi_transfer_t transfer = {
+		.deviceAddress = offset,
+		.port = data->port,
+		.cmdType = kFLEXSPI_Command,
+		.SeqNumber = 1,
+		.seqIndex = ERASE_BLOCK,
+		.data = NULL,
+		.dataSize = 0,
+	};
+
+	LOG_DBG("Erasing block at 0x%08zx", (ssize_t) offset);
+
+	return memc_flexspi_transfer(data->controller, &transfer);
+}
+
 static int flash_flexspi_nor_erase_chip(const struct device *dev)
 {
 	struct flash_flexspi_nor_data *data = dev->data;
@@ -392,7 +419,9 @@ static int flash_flexspi_nor_erase(const struct device *dev, off_t offset,
 		size_t size)
 {
 	struct flash_flexspi_nor_data *data = dev->data;
-	int num_sectors = size / SPI_NOR_SECTOR_SIZE;
+	const size_t num_sectors = size / SPI_NOR_SECTOR_SIZE;
+	const size_t num_blocks = size / SPI_NOR_BLOCK_SIZE;
+
 	int i;
 	unsigned int key = 0;
 
@@ -424,6 +453,14 @@ static int flash_flexspi_nor_erase(const struct device *dev, off_t offset,
 		flash_flexspi_nor_erase_chip(dev);
 		flash_flexspi_nor_wait_bus_busy(dev);
 		memc_flexspi_reset(data->controller);
+	} else if ((0 == (offset % SPI_NOR_BLOCK_SIZE)) && (0 == (size % SPI_NOR_BLOCK_SIZE))) {
+		for (i = 0; i < num_blocks; i++) {
+			flash_flexspi_nor_write_enable(dev);
+			flash_flexspi_nor_erase_block(dev, offset);
+			flash_flexspi_nor_wait_bus_busy(dev);
+			memc_flexspi_reset(data->controller);
+			offset += SPI_NOR_BLOCK_SIZE;
+		}
 	} else {
 		for (i = 0; i < num_sectors; i++) {
 			flash_flexspi_nor_write_enable(dev);
@@ -469,6 +506,7 @@ static int flash_flexspi_nor_init(const struct device *dev)
 {
 	struct flash_flexspi_nor_data *data = dev->data;
 	uint8_t vendor_id;
+	uint32_t temp_lut[sizeof(flash_flexspi_nor_lut) / sizeof(uint32_t)];
 
 	if (!device_is_ready(data->controller)) {
 		LOG_ERR("Controller device is not ready");
@@ -482,9 +520,19 @@ static int flash_flexspi_nor_init(const struct device *dev)
 		return -EINVAL;
 	}
 
+	/*
+	 * Using the LUT stored in the FlexSPI directly when updating
+	 * the FlexSPI can result in an invalid LUT entry being stored,
+	 * as the LUT itself describes how the FlexSPI should access the flash.
+	 * To resolve this, copy the LUT to a array placed in RAM before
+	 * updating the FlexSPI.
+	 */
+	memcpy(temp_lut, flash_flexspi_nor_lut,
+		sizeof(flash_flexspi_nor_lut));
+
 	if (memc_flexspi_update_lut(data->controller, 0,
-				   (const uint32_t *) flash_flexspi_nor_lut,
-				   sizeof(flash_flexspi_nor_lut) / 4)) {
+				   (const uint32_t *) temp_lut,
+				   sizeof(temp_lut) / sizeof(uint32_t))) {
 		LOG_ERR("Could not update lut");
 		return -EINVAL;
 	}

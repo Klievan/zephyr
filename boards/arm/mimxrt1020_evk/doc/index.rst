@@ -59,11 +59,32 @@ these references:
 - `MIMXRT1020-EVK User Guide`_
 - `MIMXRT1020-EVK Design Files`_
 
+External Memory
+===============
+
+This platform has the following external memories:
+
++----------------+------------+-------------------------------------+
+| Device         | Controller | Status                              |
++================+============+=====================================+
+| MT48LC16M16A2P | SEMC       | Enabled via device configuration    |
+|                |            | data block, which sets up SEMC at   |
+|                |            | boot time                           |
++----------------+------------+-------------------------------------+
+| IS25LP064A     | FLEXSPI    | Enabled via flash configurationn    |
+|                |            | block, which sets up FLEXSPI at     |
+|                |            | boot time                           |
++----------------+------------+-------------------------------------+
+
 Supported Features
 ==================
 
-The mimxrt1020_evk board configuration supports the following hardware
-features:
+The mimxrt1020_evk board configuration supports the hardware features listed
+below.  For additional features not yet supported, please also refer to the
+:ref:`mimxrt1064_evk` , which is the superset board in NXP's i.MX RT10xx family.
+NXP prioritizes enabling the superset board with NXP's Full Platform Support for
+Zephyr.  Therefore, the mimxrt1064_evk board may have additional features
+already supported, which can also be re-used on this mimxrt1020_evk board:
 
 +-----------+------------+-------------------------------------+
 | Interface | Controller | Driver/Component                    |
@@ -179,8 +200,14 @@ The MIMXRT1020 SoC has five pairs of pinmux/gpio controllers.
 System Clock
 ============
 
-The MIMXRT1020 SoC is configured to use the 32 KHz low frequency oscillator on
-the board as a source for the GPT timer to generate a system clock.
+The MIMXRT1020 SoC is configured to use SysTick as the system clock source,
+running at 500MHz.
+
+When power management is enabled, the 32 KHz low frequency
+oscillator on the board will be used as a source for the GPT timer to
+generate a system clock. This clock enables lower power states, at the
+cost of reduced resolution
+
 
 Serial Port
 ===========

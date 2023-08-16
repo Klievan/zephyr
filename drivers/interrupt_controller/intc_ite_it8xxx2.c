@@ -62,6 +62,7 @@ static uint8_t ier_setting[IT8XXX2_IER_COUNT];
 
 void ite_intc_save_and_disable_interrupts(void)
 {
+	volatile uint8_t _ier __unused;
 	/* Disable global interrupt for critical section */
 	unsigned int key = irq_lock();
 
@@ -70,6 +71,13 @@ void ite_intc_save_and_disable_interrupts(void)
 		ier_setting[i] = *reg_enable[i];
 		*reg_enable[i] = 0;
 	}
+	/*
+	 * This load operation will guarantee the above modification of
+	 * SOC's register can be seen by any following instructions.
+	 * Note: Barrier instruction can not synchronize chip register,
+	 * so we introduce workaround here.
+	 */
+	_ier = *reg_enable[IT8XXX2_IER_COUNT - 1];
 	irq_unlock(key);
 }
 
@@ -233,7 +241,7 @@ uint8_t __soc_ram_code get_irq(void *arg)
 	return intc_irq;
 }
 
-void ite_intc_init(void)
+void soc_interrupt_init(void)
 {
 	/* Ensure interrupts of soc are disabled at default */
 	for (int i = 0; i < ARRAY_SIZE(reg_enable); i++)

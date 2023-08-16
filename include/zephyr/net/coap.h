@@ -269,7 +269,7 @@ typedef int (*coap_reply_t)(const struct coap_packet *response,
  */
 struct coap_pending {
 	struct sockaddr addr;
-	uint32_t t0;
+	int64_t t0;
 	uint32_t timeout;
 	uint16_t id;
 	uint8_t *data;
@@ -514,7 +514,10 @@ int coap_packet_append_payload(struct coap_packet *cpkt, const uint8_t *payload,
  * @param addr Peer address
  * @param addr_len Peer address length
  *
- * @return 0 in case of success or negative in case of error.
+ * @retval 0 in case of success.
+ * @retval -ENOTSUP in case of invalid request code.
+ * @retval -EPERM in case resource handler is not implemented.
+ * @retval -ENOENT in case the resource is not found.
  */
 int coap_handle_request(struct coap_packet *cpkt,
 			struct coap_resource *resources,
@@ -577,6 +580,20 @@ int coap_block_transfer_init(struct coap_block_context *ctx,
 			     size_t total_size);
 
 /**
+ * @brief Append BLOCK1 or BLOCK2 option to the packet.
+ *
+ * If the CoAP packet is a request then BLOCK1 is appended
+ * otherwise BLOCK2 is appended.
+ *
+ * @param cpkt Packet to be updated
+ * @param ctx Block context from which to retrieve the
+ * information for the block option
+ *
+ * @return 0 in case of success or negative in case of error.
+ */
+int coap_append_descriptive_block_option(struct coap_packet *cpkt, struct coap_block_context *ctx);
+
+/**
  * @brief Append BLOCK1 option to the packet.
  *
  * @param cpkt Packet to be updated
@@ -634,6 +651,19 @@ int coap_append_size2_option(struct coap_packet *cpkt,
  * of error.
  */
 int coap_get_option_int(const struct coap_packet *cpkt, uint16_t code);
+
+/**
+ * @brief Get the block size, more flag and block number from the
+ * CoAP block1 option.
+ *
+ * @param cpkt Packet to be inspected
+ * @param has_more Is set to the value of the more flag
+ * @param block_number Is set to the number of the block
+ *
+ * @return Integer value of the block size in case of success
+ * or negative in case of error.
+ */
+int coap_get_block1_option(const struct coap_packet *cpkt, bool *has_more, uint8_t *block_number);
 
 /**
  * @brief Retrieves BLOCK{1,2} and SIZE{1,2} from @a cpkt and updates

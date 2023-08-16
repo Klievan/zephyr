@@ -7,6 +7,7 @@
 
 #include <gigadevice/gd32vf103Xb.dtsi>
 #include "gd32vf103c_starter-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "GigaDevice GD32VF103C-STARTER";
@@ -17,6 +18,7 @@
 		zephyr,flash = &flash0;
 		zephyr,console = &usart0;
 		zephyr,shell-uart = &usart0;
+		zephyr,flash-controller = &fmc;
 	};
 
 	leds {
@@ -32,6 +34,7 @@
 		key_a: key_a {
 			label = "KEY_A";
 			gpios = <&gpioa 0 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_A>;
 		};
 	};
 
@@ -49,6 +52,7 @@
 		led0 = &led1;
 		sw0 = &key_a;
 		pwm-led0 = &pwm_led;
+		watchdog0 = &fwdgt;
 	};
 };
 
@@ -84,4 +88,8 @@
 		pinctrl-0 = <&pwm2_default>;
 		pinctrl-names = "default";
 	};
+};
+
+&fwdgt {
+	status = "okay";
 };

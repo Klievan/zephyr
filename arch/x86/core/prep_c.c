@@ -15,7 +15,7 @@ extern FUNC_NORETURN void z_cstart(void);
 extern void x86_64_irq_init(void);
 
 #if !defined(CONFIG_X86_64)
-x86_boot_arg_t x86_cpu_boot_arg;
+__pinned_data x86_boot_arg_t x86_cpu_boot_arg;
 #endif
 
 /* Early global initialization functions, C domain. This runs only on the first
@@ -67,7 +67,9 @@ FUNC_NORETURN void z_x86_prep_c(void *arg)
 #endif
 
 #if CONFIG_X86_STACK_PROTECTION
-	for (int i = 0; i < CONFIG_MP_NUM_CPUS; i++) {
+	unsigned int num_cpus = arch_num_cpus();
+
+	for (int i = 0; i < num_cpus; i++) {
 		z_x86_set_stack_guard(z_interrupt_stacks[i]);
 	}
 #endif

@@ -7,6 +7,7 @@
 
 #include <arm/gigadevice/gd32e50x/gd32e507xe.dtsi>
 #include "gd32e507v_start-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "GigaDevice GD32E507V-START";
@@ -17,6 +18,7 @@
 		zephyr,flash = &flash0;
 		zephyr,console = &usart0;
 		zephyr,shell-uart = &usart0;
+		zephyr,flash-controller = &fmc;
 	};
 
 	leds {
@@ -31,6 +33,7 @@
 		user_key: user_key {
 			label = "USER_KEY";
 			gpios = <&gpioa 0 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
 
@@ -46,6 +49,7 @@
 		led0 = &led1;
 		sw0 = &user_key;
 		pwm-led0 = &pwm_led;
+		watchdog0 = &fwdgt;
 	};
 };
 
@@ -73,4 +77,8 @@
 		pinctrl-0 = <&pwm2_default>;
 		pinctrl-names = "default";
 	};
+};
+
+&fwdgt {
+	status = "okay";
 };

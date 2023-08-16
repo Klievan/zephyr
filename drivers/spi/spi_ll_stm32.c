@@ -24,8 +24,11 @@ LOG_MODULE_REGISTER(spi_ll_stm32);
 #endif
 #include <zephyr/drivers/clock_control/stm32_clock_control.h>
 #include <zephyr/drivers/clock_control.h>
+#include <zephyr/irq.h>
 
 #include "spi_ll_stm32.h"
+
+#define WAIT_1US	1U
 
 /*
  * Check for SPI_SR_FRE to determine support for TI mode frame format
@@ -48,6 +51,36 @@ LOG_MODULE_REGISTER(spi_ll_stm32);
 #endif /* CONFIG_SOC_SERIES_STM32MP1X */
 
 #ifdef CONFIG_SPI_STM32_DMA
+
+#ifdef CONFIG_SOC_SERIES_STM32H7X
+
+#define IS_NOCACHE_MEM_REGION(node_id)                                          \
+	COND_CODE_1(DT_ENUM_HAS_VALUE(node_id, zephyr_memory_attr, RAM_NOCACHE),    \
+			(1),                                                                \
+			(0))
+
+#define GET_MEM_REGION(node_id)                                                 \
+	{                                                                           \
+		.start = DT_REG_ADDR(node_id),                                          \
+		.end = (DT_REG_ADDR(node_id) + DT_REG_SIZE(node_id)) - 1,               \
+	},
+
+#define GET_MEM_REGION_IF_NOCACHE(node_id)                                      \
+	COND_CODE_1(IS_NOCACHE_MEM_REGION(node_id),                                 \
+	(                                                                           \
+		GET_MEM_REGION(node_id)                                                 \
+	), ())
+
+struct mem_region {
+	uintptr_t start;
+	uintptr_t end;
+};
+
+static const struct mem_region nocache_mem_regions[] = {
+	DT_MEMORY_ATTR_FOREACH_NODE(GET_MEM_REGION_IF_NOCACHE)
+};
+#endif /* CONFIG_SOC_SERIES_STM32H7X */
+
 /* dummy value used for transferring NOP when tx buf is null
  * and use as dummy sink for when rx buf is null
  */
@@ -60,7 +93,7 @@ static void dma_callback(const struct device *dev, void *arg,
 	/* arg directly holds the spi device */
 	struct spi_stm32_data *data = arg;
 
-	if (status != 0) {
+	if (status < 0) {
 		LOG_ERR("DMA callback error with channel %d.", channel);
 		data->status_flags |= SPI_STM32_DMA_ERROR_FLAG;
 	} else {
@@ -205,14 +238,14 @@ static int spi_dma_move_buffers(const struct device *dev, size_t len)
 	int ret;
 	size_t dma_segment_len;
 
-	dma_segment_len = len / data->dma_rx.dma_cfg.dest_data_size;
+	dma_segment_len = len * data->dma_rx.dma_cfg.dest_data_size;
 	ret = spi_stm32_dma_rx_load(dev, data->ctx.rx_buf, dma_segment_len);
 
 	if (ret != 0) {
 		return ret;
 	}
 
-	dma_segment_len = len / data->dma_tx.dma_cfg.source_data_size;
+	dma_segment_len = len * data->dma_tx.dma_cfg.source_data_size;
 	ret = spi_stm32_dma_tx_load(dev, data->ctx.tx_buf, dma_segment_len);
 
 	return ret;
@@ -540,7 +573,7 @@ static int spi_stm32_configure(const struct device *dev,
 
 	LL_SPI_DisableCRC(spi);
 
-	if (config->cs || !IS_ENABLED(CONFIG_SPI_STM32_USE_HW_SS)) {
+	if (spi_cs_is_gpio(config) || !IS_ENABLED(CONFIG_SPI_STM32_USE_HW_SS)) {
 #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
 		if (SPI_OP_MODE_GET(config->operation) == SPI_OP_MODE_MASTER) {
 			if (LL_SPI_GetNSSPolarity(spi) == LL_SPI_NSS_POLARITY_LOW)
@@ -627,7 +660,11 @@ static int transceive(const struct device *dev,
 	}
 
 	/* Set buffers info */
-	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
+	if (SPI_WORD_SIZE_GET(config->operation) == 8) {
+		spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
+	} else {
+		spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 2);
+	}
 
 #if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_spi_fifo)
 	/* Flush RX buffer */
@@ -637,6 +674,14 @@ static int transceive(const struct device *dev,
 #endif
 
 	LL_SPI_Enable(spi);
+
+#if CONFIG_SOC_SERIES_STM32H7X
+	/*
+	 * Add a small delay after enabling to prevent transfer stalling at high
+	 * system clock frequency (see errata sheet ES0392).
+	 */
+	k_busy_wait(WAIT_1US);
+#endif
 
 	/* This is turned off in spi_stm32_complete(). */
 	spi_stm32_cs_control(dev, true);
@@ -678,9 +723,20 @@ static int wait_dma_rx_tx_done(const struct device *dev)
 {
 	struct spi_stm32_data *data = dev->data;
 	int res = -1;
+	k_timeout_t timeout;
+
+	/*
+	 * In slave mode we do not know when the transaction will start. Hence,
+	 * it doesn't make sense to have timeout in this case.
+	 */
+	if (IS_ENABLED(CONFIG_SPI_SLAVE) && spi_context_is_slave(&data->ctx)) {
+		timeout = K_FOREVER;
+	} else {
+		timeout = K_MSEC(1000);
+	}
 
 	while (1) {
-		res = k_sem_take(&data->status_sem, K_MSEC(1000));
+		res = k_sem_take(&data->status_sem, timeout);
 		if (res != 0) {
 			return res;
 		}
@@ -696,6 +752,34 @@ static int wait_dma_rx_tx_done(const struct device *dev)
 
 	return res;
 }
+
+#ifdef CONFIG_SOC_SERIES_STM32H7X
+static bool buf_in_nocache(uintptr_t buf, size_t len_bytes)
+{
+	for (size_t i = 0; i < ARRAY_SIZE(nocache_mem_regions); i++) {
+		const struct mem_region *mem_reg = &nocache_mem_regions[i];
+
+		const bool buf_within_bounds =
+			(buf >= mem_reg->start) && ((buf + len_bytes - 1) <= mem_reg->end);
+		if (buf_within_bounds) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool spi_buf_set_in_nocache(const struct spi_buf_set *bufs)
+{
+	for (size_t i = 0; i < bufs->count; i++) {
+		const struct spi_buf *buf = &bufs->buffers[i];
+
+		if (!buf_in_nocache((uintptr_t)buf->buf, buf->len)) {
+			return false;
+		}
+	}
+	return true;
+}
+#endif /* CONFIG_SOC_SERIES_STM32H7X */
 
 static int transceive_dma(const struct device *dev,
 		      const struct spi_config *config,
@@ -718,6 +802,13 @@ static int transceive_dma(const struct device *dev,
 		return -ENOTSUP;
 	}
 
+#ifdef CONFIG_SOC_SERIES_STM32H7X
+	if ((tx_bufs != NULL && !spi_buf_set_in_nocache(tx_bufs)) ||
+		(rx_bufs != NULL && !spi_buf_set_in_nocache(rx_bufs))) {
+		return -EFAULT;
+	}
+#endif /* CONFIG_SOC_SERIES_STM32H7X */
+
 	spi_context_lock(&data->ctx, asynchronous, cb, userdata, config);
 
 	k_sem_reset(&data->status_sem);
@@ -728,9 +819,13 @@ static int transceive_dma(const struct device *dev,
 	}
 
 	/* Set buffers info */
-	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
+	if (SPI_WORD_SIZE_GET(config->operation) == 8) {
+		spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
+	} else {
+		spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 2);
+	}
 
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
 	/* set request before enabling (else SPI CFG1 reg is write protected) */
 	LL_SPI_EnableDMAReq_RX(spi);
 	LL_SPI_EnableDMAReq_TX(spi);
@@ -741,7 +836,7 @@ static int transceive_dma(const struct device *dev,
 	}
 #else
 	LL_SPI_Enable(spi);
-#endif /* CONFIG_SOC_SERIES_STM32H7X */
+#endif /* st_stm32h7_spi */
 
 	/* This is turned off in spi_stm32_complete(). */
 	spi_stm32_cs_control(dev, true);
@@ -764,11 +859,12 @@ static int transceive_dma(const struct device *dev,
 			break;
 		}
 
-#if !defined(CONFIG_SOC_SERIES_STM32H7X)
+#if !DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
+
 		/* toggle the DMA request to restart the transfer */
 		LL_SPI_EnableDMAReq_RX(spi);
 		LL_SPI_EnableDMAReq_TX(spi);
-#endif /* ! CONFIG_SOC_SERIES_STM32H7X */
+#endif /* ! st_stm32h7_spi */
 
 		ret = wait_dma_rx_tx_done(dev);
 		if (ret != 0) {
@@ -784,11 +880,11 @@ static int transceive_dma(const struct device *dev,
 		while (ll_func_spi_dma_busy(spi) == 0) {
 		}
 
-#if !defined(CONFIG_SOC_SERIES_STM32H7X)
+#if !DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi)
 		/* toggle the DMA transfer request */
 		LL_SPI_DisableDMAReq_TX(spi);
 		LL_SPI_DisableDMAReq_RX(spi);
-#endif /* ! CONFIG_SOC_SERIES_STM32H7X */
+#endif /* ! st_stm32h7_spi */
 
 		spi_context_update_tx(&data->ctx, 1, dma_len);
 		spi_context_update_rx(&data->ctx, 1, dma_len);
@@ -804,6 +900,12 @@ static int transceive_dma(const struct device *dev,
 
 	dma_stop(data->dma_rx.dma_dev, data->dma_rx.channel);
 	dma_stop(data->dma_tx.dma_dev, data->dma_tx.channel);
+
+#ifdef CONFIG_SPI_SLAVE
+	if (spi_context_is_slave(&data->ctx) && !ret) {
+		ret = data->ctx.recv_frames;
+	}
+#endif /* CONFIG_SPI_SLAVE */
 
 end:
 	spi_context_release(&data->ctx, ret);
@@ -914,6 +1016,9 @@ static int spi_stm32_init(const struct device *dev)
 		LOG_ERR("%s device not ready", data->dma_tx.dma_dev->name);
 		return -ENODEV;
 	}
+
+	LOG_INF(" SPI with DMA transfer");
+
 #endif /* CONFIG_SPI_STM32_DMA */
 
 	err = spi_context_cs_configure_all(&data->ctx);

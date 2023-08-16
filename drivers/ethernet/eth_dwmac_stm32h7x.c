@@ -24,6 +24,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/clock_control/stm32_clock_control.h>
 #include <zephyr/drivers/pinctrl.h>
+#include <zephyr/irq.h>
 
 #include "eth_dwmac_priv.h"
 
@@ -56,9 +57,9 @@ int dwmac_bus_init(struct dwmac_priv *p)
 		return -ENODEV;
 	}
 
-	ret  = clock_control_on(p->clock, (clock_control_subsys_t *)&pclken);
-	ret |= clock_control_on(p->clock, (clock_control_subsys_t *)&pclken_tx);
-	ret |= clock_control_on(p->clock, (clock_control_subsys_t *)&pclken_rx);
+	ret  = clock_control_on(p->clock, (clock_control_subsys_t)&pclken);
+	ret |= clock_control_on(p->clock, (clock_control_subsys_t)&pclken_tx);
+	ret |= clock_control_on(p->clock, (clock_control_subsys_t)&pclken_rx);
 	if (ret) {
 		LOG_ERR("Failed to enable ethernet clock");
 		return -EIO;

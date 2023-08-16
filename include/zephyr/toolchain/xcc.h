@@ -18,7 +18,11 @@
 #define __BYTE_ORDER__
 #endif
 
+#ifdef __clang__
+#include <zephyr/toolchain/llvm.h>
+#else
 #include <zephyr/toolchain/gcc.h>
+#endif
 
 #ifndef __clang__
 #undef __BYTE_ORDER__

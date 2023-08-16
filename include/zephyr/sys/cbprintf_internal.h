@@ -14,6 +14,7 @@
 #include <zephyr/toolchain.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/__assert.h>
+#include <zephyr/arch/cpu.h>
 
 /*
  * Special alignment cases
@@ -29,6 +30,8 @@
 #define VA_STACK_MIN_ALIGN	8
 #elif defined(__aarch64__)
 #define VA_STACK_MIN_ALIGN	8
+#elif defined(CONFIG_ARC)
+#define VA_STACK_MIN_ALIGN	ARCH_STACK_PTR_ALIGN
 #elif defined(__riscv)
 #ifdef CONFIG_RISCV_ISA_RV32E
 #define VA_STACK_ALIGN(type)	4
@@ -91,10 +94,17 @@ extern "C" {
 #else
 #define Z_CBPRINTF_IS_PCHAR(x, flags) \
 	_Generic((x) + 0, \
+		/* char * */ \
 		char * : 1, \
 		const char * : ((flags) & CBPRINTF_PACKAGE_CONST_CHAR_RO) ? 0 : 1, \
 		volatile char * : 1, \
 		const volatile char * : 1, \
+		/* unsigned char * */ \
+		unsigned char * : 1, \
+		const unsigned char * : ((flags) & CBPRINTF_PACKAGE_CONST_CHAR_RO) ? 0 : 1, \
+		volatile unsigned char * : 1, \
+		const volatile unsigned char * : 1,\
+		/* wchar_t * */ \
 		wchar_t * : 1, \
 		const wchar_t * : ((flags) & CBPRINTF_PACKAGE_CONST_CHAR_RO) ? 0 : 1, \
 		volatile wchar_t * : 1, \
@@ -171,15 +181,15 @@ extern "C" {
 #define Z_CBPRINTF_ARG_SIZE(v) z_cbprintf_cxx_arg_size(v)
 #else
 #define Z_CBPRINTF_ARG_SIZE(v) ({\
-	__auto_type _v = (v) + 0; \
+	__auto_type __v = (v) + 0; \
 	/* Static code analysis may complain about unused variable. */ \
-	(void)_v; \
-	size_t _arg_size = _Generic((v), \
+	(void)__v; \
+	size_t __arg_size = _Generic((v), \
 		float : sizeof(double), \
 		default : \
-			sizeof((_v)) \
+			sizeof((__v)) \
 		); \
-	_arg_size; \
+	__arg_size; \
 })
 #endif
 
@@ -305,6 +315,7 @@ do { \
 		if (_cros_en) { \
 			if (Z_CBPRINTF_IS_X_PCHAR(arg_idx, _arg, _flags)) { \
 				if (_rws_pos_en) { \
+					_rws_buffer[_rws_pos_idx++] = arg_idx - 1; \
 					_rws_buffer[_rws_pos_idx++] = _loc; \
 				} \
 			} else { \
@@ -313,6 +324,7 @@ do { \
 				} \
 			} \
 		} else if (_rws_pos_en) { \
+			_rws_buffer[_rws_pos_idx++] = arg_idx - 1; \
 			_rws_buffer[_rws_pos_idx++] = _idx / sizeof(int); \
 		} \
 	} \
@@ -370,6 +382,20 @@ do { \
 		 _name##_buf32)))
 #endif
 
+/* When the first argument of Z_CBPRINTF_STATIC_PACKAGE_GENERIC() is a
+ * static memory location, some compiler warns you if you compare the
+ * location against NULL.  ___is_null() is used to kill this warning.
+ *
+ * The warnings would be visible when you built with -save-temps=obj,
+ * our standard debugging tip for macro problems.
+ *
+ * https://github.com/zephyrproject-rtos/zephyr/issues/51528
+ */
+static ALWAYS_INLINE bool ___is_null(void *p)
+{
+	return p == NULL;
+}
+
 /** @brief Statically package a formatted string with arguments.
  *
  * @param buf buffer. If null then only length is calculated.
@@ -417,8 +443,8 @@ do { \
 	uint8_t *_ros_pos_buf; \
 	Z_CBPRINTF_ON_STACK_ALLOC(_ros_pos_buf, _ros_cnt); \
 	uint8_t *_rws_buffer; \
-	Z_CBPRINTF_ON_STACK_ALLOC(_rws_buffer, _rws_cnt); \
-	size_t _pmax = (buf != NULL) ? _inlen : INT32_MAX; \
+	Z_CBPRINTF_ON_STACK_ALLOC(_rws_buffer, 2 * _rws_cnt); \
+	size_t _pmax = !___is_null(buf) ? _inlen : INT32_MAX; \
 	int _pkg_len = 0; \
 	int _total_len = 0; \
 	int _pkg_offset = _align_offset; \
@@ -441,22 +467,22 @@ do { \
 	_total_len = _pkg_len; \
 	/* Append string indexes to the package. */ \
 	_total_len += _ros_cnt; \
-	_total_len += _rws_cnt; \
+	_total_len += 2 * _rws_cnt; \
 	if (_pbuf != NULL) { \
 		/* Append string locations. */ \
 		uint8_t *_pbuf_loc = &_pbuf[_pkg_len]; \
-		for (size_t i = 0; i < _ros_cnt; i++) { \
-			*_pbuf_loc++ = _ros_pos_buf[i]; \
+		for (size_t _ros_idx = 0; _ros_idx < _ros_cnt; _ros_idx++) { \
+			*_pbuf_loc++ = _ros_pos_buf[_ros_idx]; \
 		} \
-		for (size_t i = 0; i < _rws_cnt; i++) { \
-			*_pbuf_loc++ = _rws_buffer[i]; \
+		for (size_t _rws_idx = 0; _rws_idx < (2 * _rws_cnt); _rws_idx++) { \
+			*_pbuf_loc++ = _rws_buffer[_rws_idx]; \
 		} \
 	} \
 	/* Store length */ \
 	_outlen = (_total_len > (int)_pmax) ? -ENOSPC : _total_len; \
 	/* Store length in the header, set number of dumped strings to 0 */ \
 	if (_pbuf != NULL) { \
-		union cbprintf_package_hdr hdr = { \
+		union cbprintf_package_hdr pkg_hdr = { \
 			.desc = { \
 				.len = (uint8_t)(_pkg_len / sizeof(int)), \
 				.str_cnt = 0, \
@@ -465,8 +491,8 @@ do { \
 			} \
 		}; \
 		IF_ENABLED(CONFIG_CBPRINTF_PACKAGE_HEADER_STORE_CREATION_FLAGS, \
-			   (hdr.desc.pkg_flags = flags)); \
-		*_len_loc = hdr; \
+			   (pkg_hdr.desc.pkg_flags = flags)); \
+		*_len_loc = pkg_hdr; \
 	} \
 	_Pragma("GCC diagnostic pop") \
 } while (false)

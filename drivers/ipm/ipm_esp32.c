@@ -170,6 +170,20 @@ static uint32_t esp_32_ipm_max_id_val_get(const struct device *dev)
 	return 0xFFFF;
 }
 
+static int esp_32_ipm_set_enabled(const struct device *dev, int enable)
+{
+	/* The esp32 IPM is always enabled
+	 * but rpmsg backend needs IPM set enabled to be
+	 * implemented so just return success here
+	 */
+
+	ARG_UNUSED(dev);
+	ARG_UNUSED(enable);
+
+	return 0;
+}
+
+
 static int esp32_ipm_init(const struct device *dev)
 {
 	struct esp32_ipm_data *data = (struct esp32_ipm_data *)dev->data;
@@ -221,7 +235,8 @@ static const struct ipm_driver_api esp32_ipm_driver_api = {
 	.send = esp32_ipm_send,
 	.register_callback = esp32_ipm_register_callback,
 	.max_data_size_get = esp32_ipm_max_data_size_get,
-	.max_id_val_get = esp_32_ipm_max_id_val_get
+	.max_id_val_get = esp_32_ipm_max_id_val_get,
+	.set_enabled = esp_32_ipm_set_enabled
 };
 
 #define ESP32_IPM_SHM_SIZE_BY_IDX(idx)		\
@@ -234,7 +249,7 @@ static const struct ipm_driver_api esp32_ipm_driver_api = {
 										\
 static struct esp32_ipm_config esp32_ipm_device_cfg_##idx = {	\
 	.irq_source_pro_cpu = DT_INST_IRQN(idx),		\
-	.irq_source_pro_cpu = DT_INST_IRQN(idx) + 1,	\
+	.irq_source_app_cpu = DT_INST_IRQN(idx) + 1,	\
 };	\
 	\
 static struct esp32_ipm_data esp32_ipm_device_data_##idx = {	\

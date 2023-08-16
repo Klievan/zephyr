@@ -43,12 +43,16 @@ For more information about the LPC55S69 SoC and LPCXPRESSO55S69 board, see:
 - `LPCXPRESSO55S69 Website`_
 - `LPCXPRESSO55S69 User Guide`_
 - `LPCXPRESSO55S69 Schematics`_
+- `LPCXPRESSO55S69 Debug Firmware`_
 
 Supported Features
 ==================
 
-The lpcxpresso55s69 board configuration supports the following hardware
-features:
+NXP considers the LPCXpresso55S69 as the superset board for the LPC55xx
+series of MCUs.  This board is a focus for NXP's Full Platform Support for
+Zephyr, to better enable the entire LPC55xx series.  NXP prioritizes enabling
+this board with new support for Zephyr features.  The lpcxpresso55s69 board
+configuration supports the following hardware features:
 
 +-----------+------------+-------------------------------------+
 | Interface | Controller | Driver/Component                    |
@@ -65,7 +69,8 @@ features:
 +-----------+------------+-------------------------------------+
 | SPI       | on-chip    | spi                                 |
 +-----------+------------+-------------------------------------+
-| USART     | on-chip    | serial port-polling                 |
+| USART     | on-chip    | serial port-polling;                |
+|           |            | serial port-interrupt               |
 +-----------+------------+-------------------------------------+
 | WWDT      | on-chip    | windowed watchdog timer             |
 +-----------+------------+-------------------------------------+
@@ -79,7 +84,9 @@ features:
 +-----------+------------+-------------------------------------+
 | HWINFO    | on-chip    | Unique device serial number         |
 +-----------+------------+-------------------------------------+
-| USB       | on-chip    | USB device                          |
+| USB HS    | on-chip    | USB High Speed device               |
++-----------+------------+-------------------------------------+
+| USB FS    | on-chip    | USB Full Speed device               |
 +-----------+------------+-------------------------------------+
 | COUNTER   | on-chip    | counter                             |
 +-----------+------------+-------------------------------------+
@@ -91,6 +98,8 @@ features:
 |           |            | random                              |
 +-----------+------------+-------------------------------------+
 | IAP       | on-chip    | flash programming                   |
++-----------+------------+-------------------------------------+
+| SDIF      | on-chip    | sdhc                                |
 +-----------+------------+-------------------------------------+
 
 Targets available
@@ -160,6 +169,20 @@ functionality of a pin.
 | PIO1_13 | I2S             | I2S DATAIN                 |
 +---------+-----------------+----------------------------+
 | PIO0_15 | SCT0_OUT2       | PWM                        |
++---------+-----------------+----------------------------+
+| PIO0_24 | SD0_D0          | SDHC                       |
++---------+-----------------+----------------------------+
+| PIO0_25 | SD0_D1          | SDHC                       |
++---------+-----------------+----------------------------+
+| PIO0_31 | SD0_D2          | SDHC                       |
++---------+-----------------+----------------------------+
+| PIO0_7  | SD0_CLK         | SDHC                       |
++---------+-----------------+----------------------------+
+| PIO0_8  | SD0_CMD         | SDHC                       |
++---------+-----------------+----------------------------+
+| PIO0_9  | SD0_POW_EN      | SDHC                       |
++---------+-----------------+----------------------------+
+| PIO1_0  | SD0_D3          | SDHC                       |
 +---------+-----------------+----------------------------+
 
 Memory mappings
@@ -267,6 +290,12 @@ Follow the instructions in :ref:`lpclink2-jlink-onboard-debug-probe` to program
 the J-Link firmware. Please make sure you have the latest firmware for this
 board.
 
+:ref:`lpclink2-cmsis-onboard-debug-probe`
+-----------------------------------------
+
+        1. Install the :ref:`linkserver-debug-host-tools` and make sure they are in your search path.
+        2. To update the debug firmware, please follow the instructions on `LPCXPRESSO55S69 Debug Firmware`
+
 :ref:`opensda-daplink-onboard-debug-probe`
 ------------------------------------------
 
@@ -315,7 +344,7 @@ a J-Link as follows (reset and erase are for recovering a locked core):
       JLinkExe -device lpc55s69 -if swd -speed 2000 -autoconnect 1
       J-Link>r
       J-Link>erase
-      J-Link>loadfile build/tfm_merged.hex
+      J-Link>loadfile build/zephyr/tfm_merged.hex
 
 We need to reset the board manually after flashing the image to run this code.
 
@@ -359,7 +388,7 @@ should see the following message in the terminal:
    https://www.nxp.com/products/processors-and-microcontrollers/arm-based-processors-and-mcus/lpc-cortex-m-mcus/lpc5500-cortex-m33/high-efficiency-arm-cortex-m33-based-microcontroller-family:LPC55S6x
 
 .. _LPC55S69 Datasheet:
-   https://www.nxp.com/docs/en/data-sheet/LPC55S6x.pdf
+   https://www.nxp.com/docs/en/nxp/data-sheets/LPC55S6x_DS.pdf
 
 .. _LPC55S69 Reference Manual:
    https://www.nxp.com/webapp/Download?colCode=UM11126
@@ -369,6 +398,9 @@ should see the following message in the terminal:
 
 .. _LPCXPRESSO55S69 User Guide:
    https://www.nxp.com/webapp/Download?colCode=UM11158
+
+.. _LPCXPRESSO55S69 Debug Firmware:
+   https://www.nxp.com/docs/en/application-note/AN13206.pdf
 
 .. _LPCXPRESSO55S69 Schematics:
    https://www.nxp.com/webapp/Download?colCode=LPC55S69-SCH

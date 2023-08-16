@@ -14,6 +14,7 @@
 #include <zephyr/device.h>
 
 #include <zephyr/drivers/entropy.h>
+#include <zephyr/irq.h>
 
 #include "hal/swi.h"
 #include "hal/ccm.h"
@@ -32,9 +33,6 @@
 #include "lll_internal.h"
 #include "lll_prof_internal.h"
 
-#define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
-#define LOG_MODULE_NAME bt_ctlr_lll
-#include "common/log.h"
 #include "hal/debug.h"
 
 #if defined(CONFIG_BT_CTLR_ZLI)
@@ -459,7 +457,7 @@ uint32_t lll_preempt_calc(struct ull_hdr *ull, uint8_t ticker_id,
 	uint32_t diff;
 
 	ticks_now = ticker_ticks_now_get();
-	diff = ticks_now - ticks_at_event;
+	diff = ticker_ticks_diff_get(ticks_now, ticks_at_event);
 	if (diff & BIT(HAL_TICKER_CNTR_MSBIT)) {
 		return 0;
 	}
@@ -472,10 +470,10 @@ uint32_t lll_preempt_calc(struct ull_hdr *ull, uint8_t ticker_id,
 		 *    duration.
 		 * 3. Increase the preempt to start ticks for future events.
 		 */
-		return 1;
+		return diff;
 	}
 
-	return 0;
+	return 0U;
 }
 
 void lll_chan_set(uint32_t chan)
@@ -554,6 +552,28 @@ void lll_isr_rx_status_reset(void)
 	radio_status_reset();
 	radio_tmr_status_reset();
 	radio_rssi_status_reset();
+
+	if (IS_ENABLED(HAL_RADIO_GPIO_HAVE_PA_PIN) ||
+	    IS_ENABLED(HAL_RADIO_GPIO_HAVE_LNA_PIN)) {
+		radio_gpio_pa_lna_disable();
+	}
+}
+
+void lll_isr_tx_sub_status_reset(void)
+{
+	radio_status_reset();
+	radio_tmr_tx_status_reset();
+
+	if (IS_ENABLED(HAL_RADIO_GPIO_HAVE_PA_PIN) ||
+	    IS_ENABLED(HAL_RADIO_GPIO_HAVE_LNA_PIN)) {
+		radio_gpio_pa_lna_disable();
+	}
+}
+
+void lll_isr_rx_sub_status_reset(void)
+{
+	radio_status_reset();
+	radio_tmr_rx_status_reset();
 
 	if (IS_ENABLED(HAL_RADIO_GPIO_HAVE_PA_PIN) ||
 	    IS_ENABLED(HAL_RADIO_GPIO_HAVE_LNA_PIN)) {
@@ -735,6 +755,11 @@ int lll_prepare_resolve(lll_is_abort_cb_t is_abort_cb, lll_abort_cb_t abort_cb,
 
 	err = prepare_cb(prepare_param);
 
+	if (!IS_ENABLED(CONFIG_BT_CTLR_ASSERT_OVERHEAD_START) &&
+	    (err == -ECANCELED)) {
+		err = 0;
+	}
+
 #if !defined(CONFIG_BT_CTLR_LOW_LAT)
 	uint32_t ret;
 
@@ -893,8 +918,8 @@ static uint32_t preempt_ticker_start(struct lll_event *first,
 			   TICKER_NULL_REMAINDER,
 			   TICKER_NULL_LAZY,
 			   TICKER_NULL_SLOT,
-			   preempt_ticker_cb, first,
-			   ticker_start_op_cb, first);
+			   preempt_ticker_cb, first->prepare_param.param,
+			   ticker_start_op_cb, NULL);
 
 	return ret;
 }
@@ -970,7 +995,7 @@ static void preempt(void *param)
 	}
 
 	/* Preemptor not in pipeline */
-	if (next != param) {
+	if (next->prepare_param.param != param) {
 		uint32_t ret;
 
 		/* Start the preempt timeout */

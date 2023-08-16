@@ -21,6 +21,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #include <zephyr/random/rand32.h>
 #include <zephyr/net/ieee802154_radio.h>
+#include <zephyr/irq.h>
 #if defined(CONFIG_NET_L2_OPENTHREAD)
 #include <zephyr/net/openthread.h>
 #endif
@@ -168,7 +169,7 @@ static void b91_update_rssi_and_lqi(struct net_pkt *pkt)
 	lqi = b91_convert_rssi_to_lqi(rssi);
 
 	net_pkt_set_ieee802154_lqi(pkt, lqi);
-	net_pkt_set_ieee802154_rssi(pkt, rssi);
+	net_pkt_set_ieee802154_rssi_dbm(pkt, rssi);
 }
 
 /* Prepare TX buffer */
@@ -205,8 +206,8 @@ static void b91_handle_ack(void)
 	struct net_pkt *ack_pkt;
 
 	/* allocate ack packet */
-	ack_pkt = net_pkt_alloc_with_buffer(data.iface, B91_ACK_FRAME_LEN,
-					    AF_UNSPEC, 0, K_NO_WAIT);
+	ack_pkt = net_pkt_rx_alloc_with_buffer(data.iface, B91_ACK_FRAME_LEN,
+					       AF_UNSPEC, 0, K_NO_WAIT);
 	if (!ack_pkt) {
 		LOG_ERR("No free packet available.");
 		return;
@@ -226,7 +227,7 @@ static void b91_handle_ack(void)
 	net_pkt_cursor_init(ack_pkt);
 
 	/* handle ack */
-	if (ieee802154_radio_handle_ack(data.iface, ack_pkt) != NET_OK) {
+	if (ieee802154_handle_ack(data.iface, ack_pkt) != NET_OK) {
 		LOG_INF("ACK packet not handled - releasing.");
 	}
 
@@ -300,7 +301,7 @@ static void b91_rf_rx_isr(void)
 		}
 
 		/* get packet pointer from NET stack */
-		pkt = net_pkt_alloc_with_buffer(data.iface, length, AF_UNSPEC, 0, K_NO_WAIT);
+		pkt = net_pkt_rx_alloc_with_buffer(data.iface, length, AF_UNSPEC, 0, K_NO_WAIT);
 		if (!pkt) {
 			LOG_ERR("No pkt available");
 			goto exit;
@@ -402,8 +403,8 @@ static enum ieee802154_hw_caps b91_get_capabilities(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
-	return IEEE802154_HW_FCS | IEEE802154_HW_2_4_GHZ |
-	       IEEE802154_HW_FILTER | IEEE802154_HW_TX_RX_ACK;
+	return IEEE802154_HW_FCS | IEEE802154_HW_2_4_GHZ | IEEE802154_HW_FILTER |
+	       IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_RX_TX_ACK;
 }
 
 /* API implementation: cca */

@@ -292,12 +292,10 @@ static void audio_interface_config(struct usb_desc_header *head,
 	struct usb_if_descriptor *iface = (struct usb_if_descriptor *)head;
 	struct cs_ac_if_descriptor *header;
 
-#ifdef CONFIG_USB_COMPOSITE_DEVICE
 	struct usb_association_descriptor *iad =
 		(struct usb_association_descriptor *)
 		((char *)iface - sizeof(struct usb_association_descriptor));
 	iad->bFirstInterface = bInterfaceNumber;
-#endif
 	fix_fu_descriptors(iface);
 
 	/* Audio Control Interface */
@@ -828,9 +826,8 @@ int usb_audio_send(const struct device *dev, struct net_buf *buffer,
 	/** buffer passed to *priv because completion callback
 	 * needs to release it to the pool
 	 */
-	usb_transfer(ep, buffer->data, len, USB_TRANS_WRITE | USB_TRANS_NO_ZLP,
+	return usb_transfer(ep, buffer->data, len, USB_TRANS_WRITE | USB_TRANS_NO_ZLP,
 		     audio_write_cb, buffer);
-	return 0;
 }
 
 size_t usb_audio_get_in_frame_size(const struct device *dev)

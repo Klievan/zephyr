@@ -9,6 +9,7 @@
 /dts-v1/;
 #include <nordic/nrf52832_qfaa.dtsi>
 #include "thingy52_nrf52832-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "Nordic Thingy52 NRF52832";
@@ -60,6 +61,7 @@
 			/* gpio flags need validation */
 			gpios = <&gpio0 11 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
 			label = "Button";
+			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
 
@@ -72,7 +74,7 @@
 	};
 
 	vdd_pwr: vdd-pwr-ctrl {
-		compatible = "regulator-fixed-sync", "regulator-fixed";
+		compatible = "regulator-fixed";
 		regulator-name = "vdd-pwr-ctrl";
 		enable-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
 		regulator-boot-on;
@@ -80,7 +82,7 @@
 	};
 
 	spk_pwr: spk-pwr-ctrl {
-		compatible = "regulator-fixed-sync", "regulator-fixed";
+		compatible = "regulator-fixed";
 		regulator-name = "spk-pwr-ctrl";
 		enable-gpios = <&gpio0 29 GPIO_ACTIVE_HIGH>;
 	};

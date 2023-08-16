@@ -20,6 +20,7 @@
 #include <zephyr/dt-bindings/clock/npcx_clock.h>
 
 #include <zephyr/logging/log.h>
+#include <zephyr/irq.h>
 LOG_MODULE_REGISTER(ps2_npcx_ctrl, CONFIG_PS2_LOG_LEVEL);
 
 #define NPCX_PS2_CH_COUNT 4
@@ -337,7 +338,7 @@ static int ps2_npcx_ctrl_init(const struct device *dev)
 
 	/* Turn on PS/2 controller device clock */
 	ret = clock_control_on(clk_dev,
-			       (clock_control_subsys_t *)&config->clk_cfg);
+			       (clock_control_subsys_t)&config->clk_cfg);
 	if (ret < 0) {
 		LOG_ERR("Turn on PS/2 clock fail %d", ret);
 		return ret;

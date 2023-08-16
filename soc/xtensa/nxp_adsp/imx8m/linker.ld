@@ -171,6 +171,12 @@ EXTERN(ext_man_fw_ver)
 
 SECTIONS
 {
+#ifdef CONFIG_OPENAMP_RSC_TABLE
+    SECTION_PROLOGUE(.resource_table,, SUBALIGN(4))
+    {
+      KEEP(*(.resource_table*))
+    } GROUP_LINK_IN(ROMABLE_REGION)
+#endif
 
 #include <zephyr/linker/rel-sections.ld>
   .ResetVector.text : ALIGN(4)
@@ -302,7 +308,7 @@ SECTIONS
 
   .rodata : ALIGN(4)
   {
-    _rodata_start = ABSOLUTE(.);
+    __rodata_region_start = ABSOLUTE(.);
     *(.rodata)
     *(.rodata.*)
     *(.gnu.linkonce.r.*)
@@ -333,7 +339,7 @@ SECTIONS
     LONG(_bss_start)
     LONG(_bss_end)
     _bss_table_end = ABSOLUTE(.);
-    _rodata_end = ABSOLUTE(.);
+    __rodata_region_end = ABSOLUTE(.);
   } >sdram0 :sdram0_phdr
 
   .module_init : ALIGN(4)
@@ -376,7 +382,7 @@ SECTIONS
 
   .data : ALIGN(4)
   {
-    _data_start = ABSOLUTE(.);
+    __data_start = ABSOLUTE(.);
     *(.data)
     *(.data.*)
     *(.gnu.linkonce.d.*)
@@ -394,7 +400,7 @@ SECTIONS
     _trace_ctx_end = ABSOLUTE(.);
     . = ALIGN(4);
     *(.gna_model)
-    _data_end = ABSOLUTE(.);
+    __data_end = ABSOLUTE(.);
     . = ALIGN(4096);
   } >sdram0 :sdram0_phdr
 

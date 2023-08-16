@@ -29,6 +29,8 @@
 #include <zephyr/random/rand32.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/iterable_sections.h>
+
 LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
 
 #ifdef CONFIG_THREAD_MONITOR
@@ -474,8 +476,8 @@ static char *setup_thread_stack(struct k_thread *new_thread,
 
 	LOG_DBG("stack %p for thread %p: obj_size=%zu buf_start=%p "
 		" buf_size %zu stack_ptr=%p",
-		stack, new_thread, stack_obj_size, stack_buf_start,
-		stack_buf_size, stack_ptr);
+		stack, new_thread, stack_obj_size, (void *)stack_buf_start,
+		stack_buf_size, (void *)stack_ptr);
 
 #ifdef CONFIG_INIT_STACKS
 	memset(stack_buf_start, 0xaa, stack_buf_size);
@@ -577,6 +579,9 @@ char *z_setup_new_thread(struct k_thread *new_thread,
 #ifdef CONFIG_THREAD_CUSTOM_DATA
 	/* Initialize custom data field (value is opaque to kernel) */
 	new_thread->custom_data = NULL;
+#endif
+#ifdef CONFIG_EVENTS
+	new_thread->no_wake_on_timeout = false;
 #endif
 #ifdef CONFIG_THREAD_MONITOR
 	new_thread->entry.pEntry = entry;
@@ -1058,6 +1063,12 @@ void z_thread_mark_switched_out(void)
 #endif
 
 #ifdef CONFIG_TRACING
+#ifdef CONFIG_THREAD_LOCAL_STORAGE
+	/* Dummy thread won't have TLS set up to run arbitrary code */
+	if (!_current_cpu->current ||
+	    (_current_cpu->current->base.thread_state & _THREAD_DUMMY) != 0)
+		return;
+#endif
 	SYS_PORT_TRACING_FUNC(k_thread, switched_out);
 #endif
 }
@@ -1094,7 +1105,9 @@ int k_thread_runtime_stats_all_get(k_thread_runtime_stats_t *stats)
 #ifdef CONFIG_SCHED_THREAD_USAGE_ALL
 	/* Retrieve the usage stats for each core and amalgamate them. */
 
-	for (uint8_t i = 0; i < CONFIG_MP_NUM_CPUS; i++) {
+	unsigned int num_cpus = arch_num_cpus();
+
+	for (uint8_t i = 0; i < num_cpus; i++) {
 		z_sched_cpu_usage(i, &tmp_stats);
 
 		stats->execution_cycles += tmp_stats.execution_cycles;

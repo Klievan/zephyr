@@ -8,6 +8,7 @@
 #include <st/f4/stm32f469Xi.dtsi>
 #include <st/f4/stm32f469nihx-pinctrl.dtsi>
 #include "arduino_r3_connector.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
 	model = "STMicroelectronics STM32F469I-DISCO board";
@@ -46,6 +47,7 @@
 		user_button: button {
 			label = "User";
 			gpios = <&gpioa 0 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
 		};
 	};
 
@@ -58,6 +60,10 @@
 	};
 };
 
+&clk_lsi {
+	status = "okay";
+};
+
 &clk_hse {
 	clock-frequency = <DT_FREQ_M(8)>;
 	status = "okay";
@@ -65,7 +71,7 @@
 
 &pll {
 	div-m = <8>;
-	mul-n = <360>;
+	mul-n = <336>;
 	div-p = <2>;
 	div-q = <7>;
 	clocks = <&clk_hse>;
@@ -74,7 +80,7 @@
 
 &rcc {
 	clocks = <&pll>;
-	clock-frequency = <DT_FREQ_M(180)>;
+	clock-frequency = <DT_FREQ_M(168)>;
 	ahb-prescaler = <1>;
 	apb1-prescaler = <4>;
 	apb2-prescaler = <2>;
@@ -114,5 +120,7 @@ zephyr_udc0: &usbotg_fs {
 };
 
 &rtc {
+	clocks = <&rcc STM32_CLOCK_BUS_APB1 0x10000000>,
+		 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
 	status = "okay";
 };

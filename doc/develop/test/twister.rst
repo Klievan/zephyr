@@ -31,22 +31,41 @@ only builds a test and doesn't run it:
 - You or some higher level automation invoked twister with
   ``--build-only``.
 
-These also affect the outputs of ``--testcase-report`` and
-``--detailed-report``, see their respective ``--help`` sections.
-
 To run the script in the local tree, follow the steps below:
 
-::
+.. tabs::
 
-        $ source zephyr-env.sh
-        $ ./scripts/twister
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+         $ source zephyr-env.sh
+         $ ./scripts/twister
+
+   .. group-tab:: Windows
+
+      .. code-block:: bat
+
+         zephyr-env.cmd
+         python .\scripts\twister
+
 
 If you have a system with a large number of cores and plenty of free storage space,
 you can build and run all possible tests using the following options:
 
-::
+.. tabs::
 
-        $ ./scripts/twister --all --enable-slow
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+         $ ./scripts/twister --all --enable-slow
+
+   .. group-tab:: Windows
+
+      .. code-block:: bat
+
+         python .\scripts\twister --all --enable-slow
 
 This will build for all available boards and run all applicable tests in
 a simulated (for example QEMU) environment.
@@ -57,10 +76,21 @@ option, test suites will only be built/run on the platforms specified.
 This option also supports different revisions of one same board,
 you can use ``--platform board@revision`` to test on a specific revision.
 
-The list of command line options supported by twister can be viewed using::
+The list of command line options supported by twister can be viewed using:
 
-        $ ./scripts/twister --help
+.. tabs::
 
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+         $ ./scripts/twister --help
+
+   .. group-tab:: Windows
+
+      .. code-block:: bat
+
+         python .\scripts\twister --help
 
 
 Board Configuration
@@ -117,6 +147,8 @@ name:
   The actual name of the board as it appears in marketing material.
 type:
   Type of the board or configuration, currently we support 2 types: mcu, qemu
+simulation:
+  Simulator used to simulate the platform, e.g. qemu.
 arch:
   Architecture of the board
 toolchain:
@@ -258,10 +290,10 @@ skip: <True|False> (default False)
     skip testcase unconditionally. This can be used for broken tests.
 
 slow: <True|False> (default False)
-    Don't run this test case unless --enable-slow was passed in on the
-    command line. Intended for time-consuming test cases that are only
-    run under certain circumstances, like daily builds. These test cases
-    are still compiled.
+    Don't run this test case unless --enable-slow or --enable-slow-only was
+    passed in on the command line. Intended for time-consuming test cases that
+    are only run under certain circumstances, like daily builds. These test
+    cases are still compiled.
 
 extra_args: <list of extra arguments>
     Extra arguments to pass to Make when building or running the
@@ -280,17 +312,44 @@ extra_configs: <list of extra configurations>
             extra_configs:
               - CONFIG_ADC_ASYNC=y
 
+    Using namespacing, it is possible to apply a configuration only to some
+    hardware. Currently both architectures and platforms are supported::
+
+        common:
+          tags: drivers adc
+        tests:
+          test:
+            depends_on: adc
+          test_async:
+            extra_configs:
+              - arch:x86:CONFIG_ADC_ASYNC=y
+              - platform:qemu_x86:CONFIG_DEBUG=y
+
 
 build_only: <True|False> (default False)
-    If true, don't try to run the test even if the
-    selected platform supports it.
+    If true, twister will not try to run the test even if the test is runnable
+    on the platform.
+
+    This keyword is reserved for tests that are used to test if some code
+    actually builds. A ``build_only`` test is not designed to be run in any
+    environment and should not be testing any functionality, it only verifies
+    that the code builds.
+
+    This option is often used to test drivers and the fact that they are correctly
+    enabled in Zephyr and that the code builds, for example sensor drivers. Such
+    test shall not be used to verify the functionality of the dritver.
 
 build_on_all: <True|False> (default False)
-    If true, attempt to build test on all available platforms.
+    If true, attempt to build test on all available platforms. This is mostly
+    used in CI for increased coverage. Do not use this flag in new tests.
 
 depends_on: <list of features>
     A board or platform can announce what features it supports, this option
     will enable the test only those platforms that provide this feature.
+
+levels: <list of levels"
+    Test levels this test should be part of. If a level is present, this
+    test will be selectable using the command line option ``--level <level name>``
 
 min_ram: <integer>
     minimum amount of RAM in KB needed for this test to build and run. This is
@@ -301,7 +360,7 @@ min_flash: <integer>
     compared with information provided by the board metadata.
 
 timeout: <number of seconds>
-    Length of time to run test in QEMU before automatically killing it.
+    Length of time to run test before automatically killing it.
     Default to 60 seconds.
 
 arch_allow: <list of arches, such as x86, arm, arc>
@@ -330,12 +389,69 @@ extra_sections: <list of extra binary sections>
     extra, unexpected sections in the Zephyr binary unless they are named
     here. They will not be included in the size calculation.
 
+sysbuild: <True|False> (default False)
+    Build the project using sysbuild infrastructure. Only the main project's
+    generated devicetree and Kconfig will be used for filtering tests.
+    on device testing must use the hardware map, or west flash to load
+    the images onto the target. The --erase option of west flash is
+    not supported with this option. Usage of unsupported options will result
+    in tests requiring sysbuild support being skipped.
+
 harness: <string>
-    A harness string needed to run the tests successfully. This can be as
-    simple as a loopback wiring or a complete hardware test setup for
-    sensor and IO testing.
-    Usually pertains to external dependency domains but can be anything such as
-    console, sensor, net, keyboard, Bluetooth or pytest.
+    A harness keyword in the ``testcase.yaml`` file identifies a Twister
+    harness needed to run a test successfully. A harness is a feature of
+    Twister and implemented by Twister, some harnesses are defined as
+    placeholders and have no implementation yet.
+
+    A harness can be seen as the handler that needs to be implemented in
+    Twister to be able to evaluate if a test passes criteria. For example, a
+    keyboard harness is set on tests that require keyboard interaction to reach
+    verdict on whether a test has passed or failed, however, Twister lack this
+    harness implementation at the momemnt.
+
+    Supported harnesses:
+
+    - ztest
+    - test
+    - console
+    - pytest
+    - gtest
+    - robot
+
+    Harnesses ``ztest``, ``gtest`` and ``console`` are based on parsing of the
+    output and matching certain phrases. ``ztest`` and ``gtest`` harnesses look
+    for pass/fail/etc. frames defined in those frameworks. Use ``gtest``
+    harness if you've already got tests written in the gTest framework and do
+    not wish to update them to zTest. The ``console`` harness tells Twister to
+    parse a test's text output for a regex defined in the test's YAML file.
+    The ``robot`` harness is used to execute Robot Framework test suites
+    in the Renode simulation framework.
+
+    Some widely used harnesses that are not supported yet:
+
+    - keyboard
+    - net
+    - bluetooth
+
+
+platform_key: <list of platform attributes>
+    Often a test needs to only be built and run once to qualify as passing.
+    Imagine a library of code that depends on the platform architecture where
+    passing the test on a single platform for each arch is enough to qualify the
+    tests and code as passing. The platform_key attribute enables doing just
+    that.
+
+    For example to key on (arch, simulation) to ensure a test is run once
+    per arch and simulation (as would be most common)::
+
+      platform_key:
+        - arch
+        - simulation
+
+    Adding platform (board) attributes to include things such as soc name,
+    soc family, and perhaps sets of IP blocks implementing each peripheral
+    interface would enable other interesting uses. For example, this could enable
+    building and running SPI tests once for eacn unique IP block.
 
 harness_config: <harness configuration options>
     Extra harness configuration options to be used to select a board and/or
@@ -373,7 +489,8 @@ harness_config: <harness configuration options>
         automation setup based on "fixture" keyword. Some sample fixture names
         are i2c_hts221, i2c_bme280, i2c_FRAM, ble_fw and gpio_loop.
 
-        Only one fixture can be defined per testcase.
+        Only one fixture can be defined per testcase and the fixture name has to
+        be unique across all tests in the test suite.
 
     pytest_root: <pytest directory> (default pytest)
         Specify a pytest directory which need to execute when test case begin to running,
@@ -382,6 +499,9 @@ harness_config: <harness configuration options>
 
     pytest_args: <list of arguments> (default empty)
         Specify a list of additional arguments to pass to ``pytest``.
+
+    robot_test_path: <robot file path> (default empty)
+        Specify a path to a file containing a Robot Framework test suite to be run.
 
     The following is an example yaml file with a few harness_config options.
 
@@ -416,6 +536,16 @@ harness_config: <harness configuration options>
             harness_config:
               pytest_root: [pytest directory name]
 
+    The following is an example yaml file with robot harness_config options.
+
+    ::
+
+        tests:
+          robot.example:
+            harness: robot
+            harness_config:
+              robot_test_path: [robot file path]
+
 filter: <expression>
     Filter whether the testcase should be run by evaluating an expression
     against an environment containing the following values:
@@ -427,6 +557,12 @@ filter: <expression>
               <all CONFIG_* key/value pairs in the test's generated defconfig>,
               *<env>: any environment variable available
             }
+
+    Twister will first evaluate the expression to find if a "limited" cmake call, i.e. using package_helper cmake script,
+    can be done. Existence of "dt_*" entries indicates devicetree is needed.
+    Existence of "CONFIG*" entries indicates kconfig is needed.
+    If there are no other types of entries in the expression a filtration can be done without creating a complete build system.
+    If there are entries of other types a full cmake is required.
 
     The grammar for the expression language is as follows:
 
@@ -507,6 +643,42 @@ integration keyword in the testcase definition file (testcase.yaml and
 sample.yaml).
 
 
+Running tests on custom emulator
+********************************
+
+Apart from the already supported QEMU and other simulated environments, Twister
+supports running any out-of-tree custom emulator defined in the board's :file:`board.cmake`.
+To use this type of simulation, add the following properties to
+:file:`custom_board/custom_board.yaml`:
+
+::
+
+   simulation: custom
+   simulation_exec: <name_of_emu_binary>
+
+This tells Twister that the board is using a custom emulator called ``<name_of_emu_binary>``,
+make sure this binary exists in the PATH.
+
+Then, in :file:`custom_board/board.cmake`, set the supported emulation platforms to ``custom``:
+
+::
+
+   set(SUPPORTED_EMU_PLATFORMS custom)
+
+Finally, implement the ``run_custom`` target in :file:`custom_board/board.cmake`.
+It should look something like this:
+
+::
+
+   add_custom_target(run_custom
+     COMMAND
+     <name_of_emu_binary to invoke during 'run'>
+     <any args to be passed to the command, i.e. ${BOARD}, ${APPLICATION_BINARY_DIR}/zephyr/zephyr.elf>
+     WORKING_DIRECTORY ${APPLICATION_BINARY_DIR}
+     DEPENDS ${logical_target_for_zephyr_elf}
+     USES_TERMINAL
+     )
+
 Running Tests on Hardware
 *************************
 
@@ -519,10 +691,23 @@ Executing tests on a single device
 ===================================
 
 To use this feature on a single connected device, run twister with
-the following new options::
+the following new options:
 
-	scripts/twister --device-testing --device-serial /dev/ttyACM0 \
-	--device-serial-baud 9600 -p frdm_k64f  -T tests/kernel
+.. tabs::
+
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+	      scripts/twister --device-testing --device-serial /dev/ttyACM0 \
+	      --device-serial-baud 115200 -p frdm_k64f  -T tests/kernel
+
+   .. group-tab:: Windows
+
+      .. code-block:: bat
+
+	      python .\scripts\twister --device-testing --device-serial COM1 \
+	      --device-serial-baud 115200 -p frdm_k64f  -T tests/kernel
 
 The ``--device-serial`` option denotes the serial device the board is connected to.
 This needs to be accessible by the user running twister. You can run this on
@@ -533,14 +718,33 @@ The ``--device-serial-baud`` option is only needed if your device does not run a
 
 To support devices without a physical serial port, use the ``--device-serial-pty``
 option. In this cases, log messages are captured for example using a script.
-In this case you can run twister with the following options::
+In this case you can run twister with the following options:
 
-    scripts/twister --device-testing --device-serial-pty "script.py" \
-    -p intel_adsp_cavs25 -T tests/kernel
+.. tabs::
+
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+         scripts/twister --device-testing --device-serial-pty "script.py" \
+         -p intel_adsp_cavs25 -T tests/kernel
+
+   .. group-tab:: Windows
+
+      .. note::
+
+         Not supported on Windows OS
 
 The script is user-defined and handles delivering the messages which can be
 used by twister to determine the test execution status.
 
+The ``--device-flash-timeout`` option allows to set explicit timeout on the
+device flash operation, for example when device flashing takes significantly
+large time.
+
+The ``--device-flash-with-test`` option indicates that on the platform
+the flash operation also executes a test case, so the flash timeout is
+increased by a test case timeout.
 
 Executing tests on multiple devices
 ===================================
@@ -548,46 +752,106 @@ Executing tests on multiple devices
 To build and execute tests on multiple devices connected to the host PC, a
 hardware map needs to be created with all connected devices and their
 details such as the serial device, baud and their IDs if available.
-Run the following command to produce the hardware map::
+Run the following command to produce the hardware map:
 
-    ./scripts/twister --generate-hardware-map map.yml
+.. tabs::
+
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+         ./scripts/twister --generate-hardware-map map.yml
+
+   .. group-tab:: Windows
+
+      .. code-block:: bat
+
+         python .\scripts\twister --generate-hardware-map map.yml
 
 The generated hardware map file (map.yml) will have the list of connected
-devices, for example::
+devices, for example:
 
-  - connected: true
-    id: OSHW000032254e4500128002ab98002784d1000097969900
-    platform: unknown
-    product: DAPLink CMSIS-DAP
-    runner: pyocd
-    serial: /dev/cu.usbmodem146114202
-  - connected: true
-    id: 000683759358
-    platform: unknown
-    product: J-Link
-    runner: unknown
-    serial: /dev/cu.usbmodem0006837593581
+.. tabs::
+
+   .. group-tab:: Linux
+
+    ::
+
+      - connected: true
+        id: OSHW000032254e4500128002ab98002784d1000097969900
+        platform: unknown
+        product: DAPLink CMSIS-DAP
+        runner: pyocd
+        serial: /dev/cu.usbmodem146114202
+      - connected: true
+        id: 000683759358
+        platform: unknown
+        product: J-Link
+        runner: unknown
+        serial: /dev/cu.usbmodem0006837593581
+
+   .. group-tab:: Windows
+
+    ::
+
+      - connected: true
+        id: OSHW000032254e4500128002ab98002784d1000097969900
+        platform: unknown
+        product: unknown
+        runner: unknown
+        serial: COM1
+      - connected: true
+        id: 000683759358
+        platform: unknown
+        product: unknown
+        runner: unknown
+        serial: COM2
 
 
 Any options marked as 'unknown' need to be changed and set with the correct
-values, in the above example both the platform names and the runners need to be
-replaced with the correct values corresponding to the connected hardware. In
-this example we are using a reel_board and an nrf52840dk_nrf52840::
+values, in the above example the platform names, the products and the runners need
+to be replaced with the correct values corresponding to the connected hardware.
+In this example we are using a reel_board and an nrf52840dk_nrf52840:
 
-  - connected: true
-    id: OSHW000032254e4500128002ab98002784d1000097969900
-    platform: reel_board
-    product: DAPLink CMSIS-DAP
-    runner: pyocd
-    serial: /dev/cu.usbmodem146114202
-    baud: 9600
-  - connected: true
-    id: 000683759358
-    platform: nrf52840dk_nrf52840
-    product: J-Link
-    runner: nrfjprog
-    serial: /dev/cu.usbmodem0006837593581
-    baud: 9600
+.. tabs::
+
+   .. group-tab:: Linux
+
+    ::
+
+      - connected: true
+        id: OSHW000032254e4500128002ab98002784d1000097969900
+        platform: reel_board
+        product: DAPLink CMSIS-DAP
+        runner: pyocd
+        serial: /dev/cu.usbmodem146114202
+        baud: 9600
+      - connected: true
+        id: 000683759358
+        platform: nrf52840dk_nrf52840
+        product: J-Link
+        runner: nrfjprog
+        serial: /dev/cu.usbmodem0006837593581
+        baud: 9600
+
+   .. group-tab:: Windows
+
+    ::
+
+      - connected: true
+        id: OSHW000032254e4500128002ab98002784d1000097969900
+        platform: reel_board
+        product: DAPLink CMSIS-DAP
+        runner: pyocd
+        serial: COM1
+        baud: 9600
+      - connected: true
+        id: 000683759358
+        platform: nrf52840dk_nrf52840
+        product: J-Link
+        runner: nrfjprog
+        serial: COM2
+        baud: 9600
 
 The baud entry is only needed if not running at 115200.
 
@@ -596,9 +860,20 @@ will be updated. This way you can use one single master hardware map and update
 it for every run to get the correct serial devices and status of the devices.
 
 With the hardware map ready, you can run any tests by pointing to the map
-file::
 
-  ./scripts/twister --device-testing --hardware-map map.yml -T samples/hello_world/
+.. tabs::
+
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+         ./scripts/twister --device-testing --hardware-map map.yml -T samples/hello_world/
+
+   .. group-tab:: Windows
+
+      .. code-block:: bat
+
+         python .\scripts\twister --device-testing --hardware-map map.yml -T samples\hello_world
 
 The above command will result in twister building tests for the platforms
 defined in the hardware map and subsequently flashing and running the tests
@@ -610,18 +885,13 @@ on those platforms.
   with the hardware map features. Boards that require other runners to flash the
   Zephyr binary are still work in progress.
 
+Hardware map allows to set ``--device-flash-timeout`` and ``--device-flash-with-test``
+command line options as ``flash-timeout`` and ``flash-with-test`` fields respectively.
+These hardware map values override command line options for the particular platform.
+
 Serial PTY support using ``--device-serial-pty``  can also be used in the
 hardware map::
 
- - connected: true
-   id: None
-   platform: intel_adsp_cavs18
-   product: None
-   runner: intel_adsp
-   serial_pty: path/to/script.py
-   runner_params:
-     - --remote-host=remote_host_ip_addr
-     - --key=/path/to/key.pem
  - connected: true
    id: None
    platform: intel_adsp_cavs25
@@ -635,13 +905,24 @@ hardware map::
 
 The runner_params field indicates the parameters you want to pass to the
 west runner. For some boards the west runner needs some extra parameters to
-work. It is equivalent to following west and twister commands::
+work. It is equivalent to following west and twister commands.
 
-   west flash --remote-host remote_host_ip_addr --key /path/to/key.pem
+.. tabs::
 
-   twister -p intel_adsp_cavs18 --device-testing --device-serial-pty script.py
-   --west-flash="--remote-host=remote_host_ip_addr,--key=/path/to/key.pem"
+   .. group-tab:: Linux
 
+      .. code-block:: bash
+
+         west flash --remote-host remote_host_ip_addr --key /path/to/key.pem
+
+         twister -p intel_adsp_cavs25 --device-testing --device-serial-pty script.py
+         --west-flash="--remote-host=remote_host_ip_addr,--key=/path/to/key.pem"
+
+   .. group-tab:: Windows
+
+      .. note::
+
+         Not supported on Windows OS
 
 .. note::
 
@@ -723,14 +1004,15 @@ using an external J-Link probe.  The "probe_id" keyword overrides the
 Quarantine
 ++++++++++
 
-Twister allows using user-defined yaml files defining the list of tests to be put
-under quarantine. Such tests will be skipped and marked accordingly in the output
-reports. This feature is especially useful when running larger test suits, where
-a failure of one test can affect the execution of other tests (e.g. putting the
-physical board in a corrupted state).
+Twister allows user to provide onfiguration files defining a list of tests or
+platforms to be put under quarantine. Such tests will be skipped and marked
+accordingly in the output reports. This feature is especially useful when
+running larger test suits, where a failure of one test can affect the execution
+of other tests (e.g. putting the physical board in a corrupted state).
 
 To use the quarantine feature one has to add the argument
 ``--quarantine-list <PATH_TO_QUARANTINE_YAML>`` to a twister call.
+Multiple quarantine files can be used.
 The current status of tests on the quarantine list can also be verified by adding
 ``--quarantine-verify`` to the above argument. This will make twister skip all tests
 which are not on the given list.
@@ -741,21 +1023,164 @@ to put under quarantine. In addition, an optional entry "comment" can be used, w
 some more details can be given (e.g. link to a reported issue). These comments will also
 be added to the output reports.
 
+When quarantining a class of tests or many scenarios in a single testsuite or
+when dealing with multiple issues within a subsystem, it is possible to use
+regular expressions, for example, **kernel.*** would quarantine
+all kernel tests.
+
 An example of entries in a quarantine yaml::
 
     - scenarios:
         - sample.basic.helloworld
-      platforms:
-        - all
       comment: "Link to the issue: https://github.com/zephyrproject-rtos/zephyr/pull/33287"
 
     - scenarios:
         - kernel.common
-        - kernel.common.misra
+        - kernel.common.(misra|tls)
         - kernel.common.nano64
       platforms:
-        - qemu_cortex_m3
+        - .*_cortex_.*
         - native_posix
+
+To exclude a platform, use the following syntax::
+
+    - platforms:
+      - qemu_x86
+      comment: "broken qemu"
+
+Additionally you can quarantine entire architectures or a specific simulator for executing tests.
+
+Test Configuration
+******************
+
+A test configuration can be used to customize various apects of twister
+and the default enabled options and features. This allows tweaking the filtering
+capabilities depending on the environment and makes it possible to adapt and
+improve coverage when targeting different sets of platforms.
+
+The test configuration also adds support for test levels and the ability to
+assign a specific test to one or more levels. Using command line options of
+twister it is then possible to select a level and just execute the tests
+included in this level.
+
+Additionally, the test configuration allows  defining level
+dependencies and additional inclusion of tests into a specific level if
+the test itself does not have this information already.
+
+In the configuration file you can include complete components using
+regular expressions and you can specify which test level to import from
+the same file, making management of levels easier.
+
+To help with testing outside of upstream CI infrastructure, additional
+options are available in the configuration file, which can be hosted
+locally. As of now, those options are available:
+
+- Ability to ignore default platforms as defined in board definitions
+  (Those are mostly emulation platforms used to run tests in upstream
+  CI)
+- Option to specify your own list of default platforms overriding what
+  upstream defines.
+- Ability to override `build_onl_all` options used in some testcases.
+  This will treat tests or sample as any other just build for default
+  platforms you specify in the configuration file or on the command line.
+- Ignore some logic in twister to expand platform coverage in cases where
+  default platforms are not in scope.
+
+
+Platform Configuration
+======================
+
+The following options control platform filtering in twister:
+
+- `override_default_platforms`: override default key a platform sets in board
+  configuration and instead use the list of platforms provided in the
+  configuration file as the list of default platforms. This option is set to
+  False by default.
+- `increased_platform_scope`: This option is set to True by default, when
+  disabled, twister will not increase platform coverage automatically and will
+  only build and run tests on the specified platforms.
+- `default_platforms`: A list of additional default platforms to add. This list
+  can either be used to replace the existing default platforms or can extend it
+  depending on the value of `override_default_platforms`.
+
+And example platforms configuration::
+
+	platforms:
+	  override_default_platforms: true
+	  increased_platform_scope: false
+	  default_platforms:
+	    - qemu_x86
+
+
+Test Level Configuration
+========================
+
+The test configuration allows defining test levels, level dependencies and
+additional inclusion of tests into a specific test level if the test itself
+does not have this information already.
+
+In the configuration file you can include complete components using
+regular expressions and you can specify which test level to import from
+the same file, making management of levels simple.
+
+And example test level configuration::
+
+	levels:
+	  - name: my-test-level
+	    description: >
+	      my custom test level
+	    adds:
+	      - kernel.threads.*
+	      - kernel.timer.behavior
+	      - arch.interrupt
+	      - boards.*
+
+
+Combined configuration
+======================
+
+To mix the Platform and level configuration, you can take an example as below:
+
+And example platforms plus level configuration::
+
+	platforms:
+	  override_default_platforms: true
+	  default_platforms:
+	    - frdm_k64f
+	levels:
+	  - name: smoke
+	    description: >
+	        A plan to be used verifying basic zephyr features.
+	  - name: unit
+	    description: >
+	        A plan to be used verifying unit test.
+	  - name: integration
+	    description: >
+	        A plan to be used verifying integration.
+	  - name: acceptance
+	    description: >
+	        A plan to be used verifying acceptance.
+	  - name: system
+	    description: >
+	        A plan to be used verifying system.
+	  - name: regression
+	    description: >
+	        A plan to be used verifying regression.
+
+
+To run with above test_config.yaml file, only default_paltforms with given test level
+test cases will run.
+
+.. tabs::
+
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+         scripts/twister --test-config=<path to>/test_config.yaml
+          -T tests --level="smoke"
+
+
 
 Running in Tests in Random Order
 ********************************
@@ -765,3 +1190,43 @@ dependencies between test cases.  For native_posix platforms, you can provide
 the seed to the random number generator by providing ``-seed=value`` as an
 argument to twister. See :ref:`Shuffling Test Sequence <ztest_shuffle>` for more
 details.
+
+Robot Framework Tests
+*********************
+Zephyr supports `Robot Framework <https://robotframework.org/>`_ as one of solutions for automated testing.
+
+Robot files allow you to express interactive test scenarios in human-readable text format and execute them in simulation or against hardware.
+At this moment Zephyr integration supports running Robot tests in the `Renode <https://renode.io/>`_ simulation framework.
+
+To execute a Robot test suite with twister, run the following command:
+
+.. tabs::
+
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+         $ ./scripts/twister --platform hifive1 --test samples/subsys/shell/shell_module/sample.shell.shell_module.robot
+
+   .. group-tab:: Windows
+
+      .. code-block:: bat
+
+         python .\scripts\twister --platform hifive1 --test samples/subsys/shell/shell_module/sample.shell.shell_module.robot
+
+It's also possible to run it by `west` directly, with:
+
+.. code-block:: bash
+
+   $ ROBOT_FILES=shell_module.robot west build -p -b hifive1 -s samples/subsys/shell/shell_module -t run_renode_test
+
+Writing Robot tests
+===================
+
+For the list of keywords provided by the Robot Framework itself, refer to `the official Robot documentation <https://robotframework.org/robotframework/>`_.
+
+Information on writing and running Robot Framework tests in Renode can be found in `the testing section <https://renode.readthedocs.io/en/latest/introduction/testing.html>`_ of Renode documentation.
+It provides a list of the most commonly used keywords together with links to the source code where those are defined.
+
+It's possible to extend the framework by adding new keywords expressed directly in Robot test suite files, as an external Python library or, like Renode does it, dynamically via XML-RPC.
+For details see the `extending Robot Framework <https://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#extending-robot-framework>`_ section in the official Robot documentation.

@@ -17,16 +17,9 @@
  *
  * @return 0
  */
-static int viper_init(const struct device *arg)
+static int viper_init(void)
 {
-	uint32_t key;
 	uint32_t data;
-
-	ARG_UNUSED(arg);
-
-	key = irq_lock();
-
-	NMI_INIT();
 
 	/* pcie pmon lite init */
 	data = sys_read32(LS_ICFG_PMON_LITE_CLK_CTRL);
@@ -36,8 +29,6 @@ static int viper_init(const struct device *arg)
 	data = sys_read32(LS_ICFG_PMON_LITE_SW_RESETN);
 	data |= PCIE_PMON_LITE_SW_RESETN;
 	sys_write32(data, LS_ICFG_PMON_LITE_SW_RESETN);
-
-	irq_unlock(key);
 
 	return 0;
 }

@@ -27,9 +27,6 @@ If no errors are encountered, the node is marked as configured.
 The configuration of a node involves adding an application key, getting
 the composition data, and binding all its models to the application key.
 
-Please note that this sample uses the CDB API which is currently marked
-as EXPERIMENTAL and is likely to change.
-
 Requirements
 ************
 
@@ -55,3 +52,9 @@ For other boards, build and flash the application as follows:
 
 Refer to your :ref:`board's documentation <boards>` for alternative
 flash instructions if your board doesn't support the ``flash`` target.
+
+To run the application on an :ref:`nrf5340dk_nrf5340`, a Bluetooth controller application
+must also run on the network core. The :ref:`bluetooth-hci-rpmsg-sample` sample
+application may be used. Build this sample with configuration
+:zephyr_file:`samples/bluetooth/hci_rpmg/nrf5340_cpunet_bt_mesh-bt_ll_sw_split.conf`
+to enable mesh support.

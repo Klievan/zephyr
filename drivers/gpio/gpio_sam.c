@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018 Justin Watson
+ * Copyright (c) 2023 Gerson Fernando Budke
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,9 +13,11 @@
 #include <zephyr/init.h>
 #include <soc.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/clock_control/atmel_sam_pmc.h>
 #include <zephyr/dt-bindings/gpio/atmel-sam-gpio.h>
+#include <zephyr/irq.h>
 
-#include "gpio_utils.h"
+#include <zephyr/drivers/gpio/gpio_utils.h>
 
 typedef void (*config_func_t)(const struct device *dev);
 
@@ -23,7 +26,8 @@ struct gpio_sam_config {
 	struct gpio_driver_config common;
 	Pio *regs;
 	config_func_t config_func;
-	uint32_t periph_id;
+
+	const struct atmel_sam_pmc_config clock_cfg;
 };
 
 struct gpio_sam_runtime {
@@ -40,9 +44,17 @@ static int gpio_sam_port_configure(const struct device *dev, uint32_t mask,
 	const struct gpio_sam_config * const cfg = dev->config;
 	Pio * const pio = cfg->regs;
 
-	if (flags & GPIO_SINGLE_ENDED) {
-		/* TODO: Add support for Open Source, Open Drain mode */
-		return -ENOTSUP;
+	if ((flags & GPIO_SINGLE_ENDED) != 0) {
+		if ((flags & GPIO_LINE_OPEN_DRAIN) != 0) {
+			/* Enable open-drain drive mode */
+			pio->PIO_MDER = mask;
+		} else {
+			/* Open-drain is the only supported single-ended mode */
+			return -ENOTSUP;
+		}
+	} else {
+		/* Disable open-drain drive mode */
+		pio->PIO_MDDR = mask;
 	}
 
 	if (!(flags & (GPIO_OUTPUT | GPIO_INPUT))) {
@@ -296,8 +308,9 @@ int gpio_sam_init(const struct device *dev)
 {
 	const struct gpio_sam_config * const cfg = dev->config;
 
-	/* The peripheral clock must be enabled for the interrupts to work. */
-	soc_pmc_peripheral_enable(cfg->periph_id);
+	/* Enable GPIO clock in PMC. This is necessary to enable interrupts */
+	(void)clock_control_on(SAM_DT_PMC_CONTROLLER,
+			       (clock_control_subsys_t)&cfg->clock_cfg);
 
 	cfg->config_func(dev);
 
@@ -312,7 +325,7 @@ int gpio_sam_init(const struct device *dev)
 			.port_pin_mask = GPIO_PORT_PIN_MASK_FROM_DT_INST(n),\
 		},							\
 		.regs = (Pio *)DT_INST_REG_ADDR(n),			\
-		.periph_id = DT_INST_PROP(n, peripheral_id),		\
+		.clock_cfg = SAM_DT_INST_CLOCK_PMC_CFG(n),		\
 		.config_func = port_##n##_sam_config_func,		\
 	};								\
 									\

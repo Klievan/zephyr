@@ -13,7 +13,7 @@ import os
 from elftools.elf.elffile import ELFFile
 from elftools.elf.sections import SymbolTableSection
 
-ISR_FLAG_DIRECT = (1 << 0)
+ISR_FLAG_DIRECT = 1 << 0
 
 # The below few hardware independent magic numbers represent various
 # levels of interrupts in a multi-level interrupt system.
@@ -26,6 +26,8 @@ ISR_FLAG_DIRECT = (1 << 0)
 FIRST_LVL_INTERRUPTS = 0x000000FF
 SECND_LVL_INTERRUPTS = 0x0000FF00
 THIRD_LVL_INTERRUPTS = 0x00FF0000
+
+INTERRUPT_BITS = [8, 8, 8]
 
 def debug(text):
     if args.debug:
@@ -105,7 +107,7 @@ def parse_args():
     global args
 
     parser = argparse.ArgumentParser(description=__doc__,
-            formatter_class=argparse.RawDescriptionHelpFormatter)
+            formatter_class=argparse.RawDescriptionHelpFormatter, allow_abbrev=False)
 
     parser.add_argument("-e", "--big-endian", action="store_true",
             help="Target encodes data in big-endian format (little endian is "
@@ -230,6 +232,24 @@ def getindex(irq, irq_aggregator_pos):
               format(irq, irq_aggregator_pos) +
               " Recheck interrupt configuration.")
 
+def bit_mask(bits):
+    mask = 0
+    for _ in range(0, bits):
+        mask = (mask << 1) | 1
+    return mask
+
+def update_masks():
+    global FIRST_LVL_INTERRUPTS
+    global SECND_LVL_INTERRUPTS
+    global THIRD_LVL_INTERRUPTS
+
+    if sum(INTERRUPT_BITS) > 32:
+        raise ValueError("Too many interrupt bits")
+
+    FIRST_LVL_INTERRUPTS = bit_mask(INTERRUPT_BITS[0])
+    SECND_LVL_INTERRUPTS = bit_mask(INTERRUPT_BITS[1]) << INTERRUPT_BITS[0]
+    THIRD_LVL_INTERRUPTS = bit_mask(INTERRUPT_BITS[2]) << INTERRUPT_BITS[0] + INTERRUPT_BITS[2]
+
 def main():
     parse_args()
 
@@ -239,6 +259,11 @@ def main():
 
     if "CONFIG_MULTI_LEVEL_INTERRUPTS" in syms:
         max_irq_per = syms["CONFIG_MAX_IRQ_PER_AGGREGATOR"]
+
+        INTERRUPT_BITS[0] = syms["CONFIG_1ST_LEVEL_INTERRUPT_BITS"]
+        INTERRUPT_BITS[1] = syms["CONFIG_2ND_LEVEL_INTERRUPT_BITS"]
+        INTERRUPT_BITS[2] = syms["CONFIG_3RD_LEVEL_INTERRUPT_BITS"]
+        update_masks()
 
         if "CONFIG_2ND_LEVEL_INTERRUPTS" in syms:
             num_aggregators = syms["CONFIG_NUM_2ND_LEVEL_AGGREGATORS"]
@@ -311,9 +336,9 @@ def main():
             else:
                 # Figure out third level interrupt position
                 debug('IRQ = ' + hex(irq))
-                irq3 = (irq & THIRD_LVL_INTERRUPTS) >> 16
-                irq2 = (irq & SECND_LVL_INTERRUPTS) >> 8
-                irq1 = (irq & FIRST_LVL_INTERRUPTS)
+                irq3 = (irq & THIRD_LVL_INTERRUPTS) >> INTERRUPT_BITS[0] + INTERRUPT_BITS[1]
+                irq2 = (irq & SECND_LVL_INTERRUPTS) >> INTERRUPT_BITS[0]
+                irq1 = irq & FIRST_LVL_INTERRUPTS
 
                 if irq3:
                     irq_parent = irq2

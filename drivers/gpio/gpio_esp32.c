@@ -20,7 +20,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/dt-bindings/gpio/espressif-esp32-gpio.h>
-#ifdef CONFIG_SOC_ESP32C3
+#ifdef CONFIG_SOC_SERIES_ESP32C3
 #include <zephyr/drivers/interrupt_controller/intc_esp32c3.h>
 #else
 #include <zephyr/drivers/interrupt_controller/intc_esp32.h>
@@ -28,12 +28,12 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
 
-#include "gpio_utils.h"
+#include <zephyr/drivers/gpio/gpio_utils.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(gpio_esp32, CONFIG_LOG_DEFAULT_LEVEL);
 
-#ifdef CONFIG_SOC_ESP32C3
+#ifdef CONFIG_SOC_SERIES_ESP32C3
 /* gpio structs in esp32c3 series are different from xtensa ones */
 #define out out.data
 #define in in.data
@@ -124,7 +124,7 @@ static int gpio_esp32_config(const struct device *dev,
 			int rtcio_num = rtc_io_num_map[io_pin];
 
 			if (rtc_io_desc[rtcio_num].pullup) {
-				rtcio_hal_pullup_enable(rtc_io_num_map[io_pin]);
+				rtcio_hal_pullup_enable(rtcio_num);
 			} else {
 				ret = -ENOTSUP;
 				goto end;
@@ -136,7 +136,11 @@ static int gpio_esp32_config(const struct device *dev,
 			gpio_ll_pullup_dis(&GPIO, io_pin);
 		} else {
 #if SOC_RTCIO_INPUT_OUTPUT_SUPPORTED
-			rtcio_hal_pullup_disable(io_pin);
+			int rtcio_num = rtc_io_num_map[io_pin];
+
+			if (rtc_io_desc[rtcio_num].pullup) {
+				rtcio_hal_pullup_disable(rtcio_num);
+			}
 #else
 			ret = -ENOTSUP;
 			goto end;
@@ -164,7 +168,7 @@ static int gpio_esp32_config(const struct device *dev,
 			int rtcio_num = rtc_io_num_map[io_pin];
 
 			if (rtc_io_desc[rtcio_num].pulldown) {
-				rtcio_hal_pulldown_enable(rtc_io_num_map[io_pin]);
+				rtcio_hal_pulldown_enable(rtcio_num);
 			} else {
 				ret = -ENOTSUP;
 				goto end;
@@ -176,7 +180,11 @@ static int gpio_esp32_config(const struct device *dev,
 			gpio_ll_pulldown_dis(&GPIO, io_pin);
 		} else {
 #if SOC_RTCIO_INPUT_OUTPUT_SUPPORTED
-			rtcio_hal_pulldown_disable(io_pin);
+			int rtcio_num = rtc_io_num_map[io_pin];
+
+			if (rtc_io_desc[rtcio_num].pulldown) {
+				rtcio_hal_pulldown_disable(rtcio_num);
+			}
 #else
 			ret = -ENOTSUP;
 			goto end;
@@ -386,6 +394,12 @@ static int gpio_esp32_pin_interrupt_configure(const struct device *port,
 	}
 
 	key = irq_lock();
+	if (cfg->gpio_port == 0) {
+		gpio_ll_clear_intr_status(cfg->gpio_base, BIT(pin));
+	} else {
+		gpio_ll_clear_intr_status_high(cfg->gpio_base, BIT(pin));
+	}
+
 	gpio_ll_set_intr_type(cfg->gpio_base, io_pin, intr_trig_mode);
 	gpio_ll_intr_enable_on_core(cfg->gpio_base, CPU_ID(), io_pin);
 	irq_unlock(key);

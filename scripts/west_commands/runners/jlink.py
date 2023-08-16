@@ -5,7 +5,6 @@
 '''Runner for debugging with J-Link.'''
 
 import argparse
-from functools import partial
 import logging
 import os
 from pathlib import Path
@@ -14,7 +13,7 @@ import subprocess
 import sys
 import tempfile
 
-from runners.core import ZephyrBinaryRunner, RunnerCaps, depr_action
+from runners.core import ZephyrBinaryRunner, RunnerCaps, FileType
 
 try:
     import pylink
@@ -38,11 +37,14 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                  commander=DEFAULT_JLINK_EXE,
                  dt_flash=True, erase=True, reset_after_load=False,
                  iface='swd', speed='auto',
+                 loader=None,
                  gdbserver='JLinkGDBServer',
                  gdb_host='',
                  gdb_port=DEFAULT_JLINK_GDB_PORT,
                  tui=False, tool_opt=[]):
         super().__init__(cfg)
+        self.file = cfg.file
+        self.file_type = cfg.file_type
         self.hex_name = cfg.hex_file
         self.bin_name = cfg.bin_file
         self.elf_name = cfg.elf_file
@@ -59,6 +61,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         self.gdb_host = gdb_host
         self.gdb_port = gdb_port
         self.tui_arg = ['-tui'] if tui else []
+        self.loader = loader
 
         self.tool_opt = []
         for opts in [shlex.split(opt) for opt in tool_opt]:
@@ -72,7 +75,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
     def capabilities(cls):
         return RunnerCaps(commands={'flash', 'debug', 'debugserver', 'attach'},
                           dev_id=True, flash_addr=True, erase=True,
-                          tool_opt=True)
+                          tool_opt=True, file=True)
 
     @classmethod
     def dev_id_help(cls) -> str:
@@ -89,10 +92,10 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         parser.add_argument('--device', required=True, help='device name')
 
         # Optional:
+        parser.add_argument('--loader', required=False, dest='loader',
+                            help='specifies a loader type')
         parser.add_argument('--id', required=False, dest='dev_id',
-                            action=partial(depr_action,
-                                           replacement='-i/--dev-id'),
-                            help='Deprecated: use -i/--dev-id instead')
+                            help='obsolete synonym for -i/--dev-id')
         parser.add_argument('--iface', default='swd',
                             help='interface to use, default is swd')
         parser.add_argument('--speed', default='auto',
@@ -127,6 +130,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                                  reset_after_load=args.reset_after_load,
                                  iface=args.iface, speed=args.speed,
                                  gdbserver=args.gdbserver,
+                                 loader=args.loader,
                                  gdb_host=args.gdb_host,
                                  gdb_port=args.gdb_port,
                                  tui=args.tui, tool_opt=args.tool_opt)
@@ -200,7 +204,12 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         # RTOSPlugin_Zephyr was introduced in 7.11b
         return self.jlink_version >= (7, 11, 2)
 
+    @property
+    def supports_loader(self):
+        return self.jlink_version >= (7, 70, 4)
+
     def do_run(self, command, **kwargs):
+
         if MISSING_REQUIREMENTS:
             raise RuntimeError('one or more Python dependencies were missing; '
                                "see the getting started guide for details on "
@@ -241,11 +250,17 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         else:
             if self.gdb_cmd is None:
                 raise ValueError('Cannot debug; gdb is missing')
-            if self.elf_name is None:
+            if self.file is not None:
+                if self.file_type != FileType.ELF:
+                    raise ValueError('Cannot debug; elf file required')
+                elf_name = self.file
+            elif self.elf_name is None:
                 raise ValueError('Cannot debug; elf is missing')
+            else:
+                elf_name = self.elf_name
             client_cmd = (self.gdb_cmd +
                           self.tui_arg +
-                          [self.elf_name] +
+                          [elf_name] +
                           ['-ex', 'target remote {}:{}'.format(self.gdb_host, self.gdb_port)])
             if command == 'debug':
                 client_cmd += ['-ex', 'monitor halt',
@@ -261,6 +276,8 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                 self.run_client(client_cmd)
 
     def flash(self, **kwargs):
+
+        loader_details = ""
         lines = [
             'ExitOnError 1',  # Treat any command-error as fatal
             'r',  # Reset and halt the target
@@ -269,20 +286,42 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         if self.erase:
             lines.append('erase') # Erase all flash sectors
 
-        # Get the build artifact to flash, preferring .hex over .bin
-        if self.hex_name is not None and os.path.isfile(self.hex_name):
-            flash_file = self.hex_name
-            flash_cmd = f'loadfile "{self.hex_name}"'
-        elif self.bin_name is not None and os.path.isfile(self.bin_name):
-            if self.dt_flash:
-                flash_addr = self.flash_address_from_build_conf(self.build_conf)
+        # Get the build artifact to flash
+        if self.file is not None:
+            # use file provided by the user
+            if not os.path.isfile(self.file):
+                err = 'Cannot flash; file ({}) not found'
+                raise ValueError(err.format(self.file))
+
+            flash_file = self.file
+
+            if self.file_type == FileType.HEX:
+                flash_cmd = f'loadfile "{self.file}"'
+            elif self.file_type == FileType.BIN:
+                if self.dt_flash:
+                    flash_addr = self.flash_address_from_build_conf(self.build_conf)
+                else:
+                    flash_addr = 0
+                flash_cmd = f'loadfile "{self.file}" 0x{flash_addr:x}'
             else:
-                flash_addr = 0
-            flash_file = self.bin_name
-            flash_cmd = f'loadfile "{self.bin_name}" 0x{flash_addr:x}'
+                err = 'Cannot flash; jlink runner only supports hex and bin files'
+                raise ValueError(err)
+
         else:
-            err = 'Cannot flash; no hex ({}) or bin ({}) files found.'
-            raise ValueError(err.format(self.hex_name, self.bin_name))
+            # use hex or bin file provided by the buildsystem, preferring .hex over .bin
+            if self.hex_name is not None and os.path.isfile(self.hex_name):
+                flash_file = self.hex_name
+                flash_cmd = f'loadfile "{self.hex_name}"'
+            elif self.bin_name is not None and os.path.isfile(self.bin_name):
+                if self.dt_flash:
+                    flash_addr = self.flash_address_from_build_conf(self.build_conf)
+                else:
+                    flash_addr = 0
+                flash_file = self.bin_name
+                flash_cmd = f'loadfile "{self.bin_name}" 0x{flash_addr:x}'
+            else:
+                err = 'Cannot flash; no hex ({}) or bin ({}) files found.'
+                raise ValueError(err.format(self.hex_name, self.bin_name))
 
         # Flash the selected build artifact
         lines.append(flash_cmd)
@@ -312,13 +351,16 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
             fname = os.path.join(d, 'runner.jlink')
             with open(fname, 'wb') as f:
                 f.writelines(bytes(line + '\n', 'utf-8') for line in lines)
+            if self.supports_loader and self.loader:
+                loader_details = "?" + self.loader
+
             cmd = ([self.commander] +
                     # only USB connections supported
                    (['-USB', f'{self.dev_id}'] if self.dev_id else []) +
                    (['-nogui', '1'] if self.supports_nogui else []) +
                    ['-if', self.iface,
                     '-speed', self.speed,
-                    '-device', self.device,
+                    '-device', self.device + loader_details,
                     '-CommanderScript', fname] +
                    (['-nogui', '1'] if self.supports_nogui else []) +
                    self.tool_opt)

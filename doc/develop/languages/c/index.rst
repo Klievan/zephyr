@@ -12,6 +12,11 @@ available as part of the C header files under the :file:`include` directory, so
 writing Zephyr applications in C gives the developers access to the most
 features.
 
+The ``main()`` function must have the return type of ``int`` as Zephyr
+applications run in a "hosted" environment as defined by the C
+standard. Applications must return zero (0) from main. All non-zero return
+values are reserved.
+
 .. _c_standards:
 
 Language Standards
@@ -58,10 +63,25 @@ application.
 .. toctree::
    :maxdepth: 2
 
+   common_libc.rst
    minimal_libc.rst
    newlib.rst
+   picolibc.rst
 
 .. _`C Standard Library`: https://en.wikipedia.org/wiki/C_standard_library
+
+.. _c_library_formatted_output:
+
+Formatted Output
+****************
+
+C defines standard formatted output functions such as ``printf`` and
+``sprintf`` and these functions are implemented by the C standard
+libraries.
+
+Each C standard library has its own set of requirements and configurations for
+selecting the formatted output modes and capabilities. Refer to each C standard
+library documentation for more details.
 
 .. _c_library_dynamic_mem:
 

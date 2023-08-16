@@ -21,9 +21,11 @@ supported:
   - arduino_spi
   - counter
   - dma
+  - pwm
   - gpio
   - hwinfo
   - i2c
+  - i3c
   - i2s
   - sdhc
   - spi

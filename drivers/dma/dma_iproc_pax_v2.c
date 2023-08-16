@@ -22,6 +22,7 @@
 
 #define LOG_LEVEL CONFIG_DMA_LOG_LEVEL
 #include <zephyr/logging/log.h>
+#include <zephyr/irq.h>
 LOG_MODULE_REGISTER(dma_iproc_pax_v2);
 
 /* Driver runtime data for PAX DMA and RM */
@@ -1101,5 +1102,5 @@ DEVICE_DT_INST_DEFINE(0,
 		    &pax_dma_data,
 		    &pax_dma_cfg,
 		    POST_KERNEL,
-		    CONFIG_DMA_INIT_PRIORITY,
+		    CONFIG_DMA_IPROC_PAX_V2_INIT_PRIORITY,
 		    &pax_dma_driver_api);

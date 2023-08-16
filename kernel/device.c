@@ -7,22 +7,10 @@
 #include <string.h>
 #include <zephyr/device.h>
 #include <zephyr/sys/atomic.h>
+#include <zephyr/sys/iterable_sections.h>
+#include <zephyr/sys/kobject.h>
 #include <zephyr/syscall_handler.h>
-
-extern const struct init_entry __init_start[];
-extern const struct init_entry __init_PRE_KERNEL_1_start[];
-extern const struct init_entry __init_PRE_KERNEL_2_start[];
-extern const struct init_entry __init_POST_KERNEL_start[];
-extern const struct init_entry __init_APPLICATION_start[];
-extern const struct init_entry __init_end[];
-
-#ifdef CONFIG_SMP
-extern const struct init_entry __init_SMP_start[];
-#endif
-
-extern const struct device __device_start[];
-extern const struct device __device_end[];
-
+#include <zephyr/toolchain.h>
 
 /**
  * @brief Initialize state for all static devices.
@@ -32,66 +20,13 @@ extern const struct device __device_end[];
  */
 void z_device_state_init(void)
 {
-	const struct device *dev = __device_start;
-
-	while (dev < __device_end) {
+	STRUCT_SECTION_FOREACH(device, dev) {
 		z_object_init(dev);
-		++dev;
-	}
-}
-
-/**
- * @brief Execute all the init entry initialization functions at a given level
- *
- * @details Invokes the initialization routine for each init entry object
- * created by the INIT_ENTRY_DEFINE() macro using the specified level.
- * The linker script places the init entry objects in memory in the order
- * they need to be invoked, with symbols indicating where one level leaves
- * off and the next one begins.
- *
- * @param level init level to run.
- */
-void z_sys_init_run_level(int32_t level)
-{
-	static const struct init_entry *levels[] = {
-		__init_PRE_KERNEL_1_start,
-		__init_PRE_KERNEL_2_start,
-		__init_POST_KERNEL_start,
-		__init_APPLICATION_start,
-#ifdef CONFIG_SMP
-		__init_SMP_start,
-#endif
-		/* End marker */
-		__init_end,
-	};
-	const struct init_entry *entry;
-
-	for (entry = levels[level]; entry < levels[level+1]; entry++) {
-		const struct device *dev = entry->dev;
-		int rc = entry->init(dev);
-
-		if (dev != NULL) {
-			/* Mark device initialized.  If initialization
-			 * failed, record the error condition.
-			 */
-			if (rc != 0) {
-				if (rc < 0) {
-					rc = -rc;
-				}
-				if (rc > UINT8_MAX) {
-					rc = UINT8_MAX;
-				}
-				dev->state->init_res = rc;
-			}
-			dev->state->initialized = true;
-		}
 	}
 }
 
 const struct device *z_impl_device_get_binding(const char *name)
 {
-	const struct device *dev;
-
 	/* A null string identifies no device.  So does an empty
 	 * string.
 	 */
@@ -104,13 +39,13 @@ const struct device *z_impl_device_get_binding(const char *name)
 	 * with CONFIG_* macros), only cheap pointer comparisons will be
 	 * performed. Reserve string comparisons for a fallback.
 	 */
-	for (dev = __device_start; dev != __device_end; dev++) {
+	STRUCT_SECTION_FOREACH(device, dev) {
 		if (z_device_is_ready(dev) && (dev->name == name)) {
 			return dev;
 		}
 	}
 
-	for (dev = __device_start; dev != __device_end; dev++) {
+	STRUCT_SECTION_FOREACH(device, dev) {
 		if (z_device_is_ready(dev) && (strcmp(name, dev->name) == 0)) {
 			return dev;
 		}
@@ -144,8 +79,12 @@ static inline bool z_vrfy_device_is_ready(const struct device *dev)
 
 size_t z_device_get_all_static(struct device const **devices)
 {
-	*devices = __device_start;
-	return __device_end - __device_start;
+	size_t cnt;
+
+	STRUCT_SECTION_GET(device, 0, devices);
+	STRUCT_SECTION_COUNT(device, &cnt);
+
+	return cnt;
 }
 
 bool z_device_is_ready(const struct device *dev)
@@ -160,6 +99,8 @@ bool z_device_is_ready(const struct device *dev)
 
 	return dev->state->initialized && (dev->state->init_res == 0U);
 }
+
+#ifdef CONFIG_DEVICE_DEPS
 
 static int device_visitor(const device_handle_t *handles,
 			   size_t handle_count,
@@ -199,3 +140,5 @@ int device_supported_foreach(const struct device *dev,
 
 	return device_visitor(handles, handle_count, visitor_cb, context);
 }
+
+#endif /* CONFIG_DEVICE_DEPS */

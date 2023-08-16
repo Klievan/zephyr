@@ -53,6 +53,10 @@ features:
 +-----------+------------+----------------------+
 | SPI       | on-chip    | spi                  |
 +-----------+------------+----------------------+
+| WDT       | on-chip    | watchdog             |
++-----------+------------+----------------------+
+| AUX_ADC   | on-chip    | adc                  |
++-----------+------------+----------------------+
 
 Other hardware features have not been enabled yet for this board.
 

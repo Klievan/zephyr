@@ -15,6 +15,10 @@
  * it guarantee that ALL functionality provided is working correctly.
  */
 
+#ifdef CONFIG_NEWLIB_LIBC
+#define _POSIX_C_SOURCE 200809
+#endif
+
 #include <zephyr/kernel.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/ztest.h>
@@ -33,6 +37,9 @@
 #include <time.h>
 #include <zephyr/ztest_error_hook.h>
 #ifdef CONFIG_PICOLIBC
+#include <unistd.h>
+#endif
+#ifdef CONFIG_NEWLIB_LIBC
 #include <unistd.h>
 #endif
 
@@ -73,7 +80,7 @@ volatile long long_one = 1L;
 ZTEST(test_c_lib, test_limits)
 {
 
-	zassert_true((long_max + long_one == LONG_MIN), NULL);
+	zassert_true((long_max + long_one == LONG_MIN));
 }
 
 static ssize_t foobar(void)
@@ -83,7 +90,7 @@ static ssize_t foobar(void)
 
 ZTEST(test_c_lib, test_ssize_t)
 {
-	zassert_true(foobar() < 0, NULL);
+	zassert_true(foobar() < 0);
 }
 
 /**
@@ -135,7 +142,7 @@ volatile uint32_t unsigned_int = 0xffffff00;
  */
 ZTEST(test_c_lib, test_stdint)
 {
-	zassert_true((unsigned_int + unsigned_byte + 1u == 0U), NULL);
+	zassert_true((unsigned_int + unsigned_byte + 1u == 0U));
 
 #if (UINT8_C(1) == 1)			\
 	&& (INT8_C(-1) == -1)		\
@@ -147,7 +154,7 @@ ZTEST(test_c_lib, test_stdint)
 	&& (INT64_C(-8) == -8)		\
 	&& (UINTMAX_C(11) == 11)	\
 	&& (INTMAX_C(-11) == -11)
-	zassert_true(true, NULL);
+	zassert_true(true);
 #else
 	zassert_true(false, "const int expr values ...");
 #endif
@@ -443,7 +450,7 @@ ZTEST(test_c_lib, test_checktype)
 	char *ptr = buf;
 
 	for (int i = 0; i < 128; i++) {
-		if (isalnum(i)) {
+		if (isalnum(i) != 0) {
 			*ptr++ = i;
 		}
 	}
@@ -452,7 +459,7 @@ ZTEST(test_c_lib, test_checktype)
 
 	ptr = buf;
 	for (int i = 0; i < 128; i++) {
-		if (isalpha(i)) {
+		if (isalpha(i) != 0) {
 			*ptr++ = i;
 		}
 	}
@@ -461,7 +468,7 @@ ZTEST(test_c_lib, test_checktype)
 
 	ptr = buf;
 	for (int i = 0; i < 128; i++) {
-		if (isdigit(i)) {
+		if (isdigit(i) != 0) {
 			*ptr++ = i;
 		}
 	}
@@ -470,7 +477,7 @@ ZTEST(test_c_lib, test_checktype)
 
 	ptr = buf;
 	for (int i = 0; i < 128; i++) {
-		if (isgraph(i)) {
+		if (isgraph(i) != 0) {
 			*ptr++ = i;
 		}
 	}
@@ -479,7 +486,7 @@ ZTEST(test_c_lib, test_checktype)
 
 	ptr = buf;
 	for (int i = 0; i < 128; i++) {
-		if (isprint(i)) {
+		if (isprint(i) != 0) {
 			*ptr++ = i;
 		}
 	}
@@ -488,7 +495,7 @@ ZTEST(test_c_lib, test_checktype)
 
 	ptr = buf;
 	for (int i = 0; i < 128; i++) {
-		if (isupper(i)) {
+		if (isupper(i) != 0) {
 			*ptr++ = i;
 		}
 	}
@@ -497,7 +504,7 @@ ZTEST(test_c_lib, test_checktype)
 
 	ptr = buf;
 	for (int i = 0; i < 128; i++) {
-		if (isspace(i)) {
+		if (isspace(i) != 0) {
 			*ptr++ = i;
 		}
 	}
@@ -506,7 +513,7 @@ ZTEST(test_c_lib, test_checktype)
 
 	ptr = buf;
 	for (int i = 0; i < 128; i++) {
-		if (isxdigit(i)) {
+		if (isxdigit(i) != 0) {
 			*ptr++ = i;
 		}
 	}
@@ -1083,7 +1090,7 @@ ZTEST(test_c_lib, test_time)
  */
 ZTEST(test_c_lib, test_rand)
 {
-#ifndef CONFIG_PICOLIBC
+#ifdef CONFIG_MINIMAL_LIBC
 	int a;
 
 	a = rand();
@@ -1101,7 +1108,7 @@ ZTEST(test_c_lib, test_rand)
  */
 ZTEST(test_c_lib, test_srand)
 {
-#ifndef CONFIG_PICOLIBC
+#ifdef CONFIG_MINIMAL_LIBC
 	int a;
 
 	srand(0);
@@ -1135,7 +1142,7 @@ ZTEST(test_c_lib, test_srand)
  */
 ZTEST(test_c_lib, test_rand_reproducibility)
 {
-#ifndef CONFIG_PICOLIBC
+#ifdef CONFIG_MINIMAL_LIBC
 	int a;
 	int b;
 	int c;
@@ -1211,12 +1218,12 @@ ZTEST(test_c_lib, test_abort)
 
 /**
  *
- * @brief test _exit functions
+ * @brief test exit functions
  *
  */
 static void exit_program(void *p1, void *p2, void *p3)
 {
-	_exit(1);
+	exit(1);
 }
 
 ZTEST(test_c_lib, test_exit)

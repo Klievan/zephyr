@@ -14,7 +14,6 @@
 #include <zephyr/init.h>
 #include <soc.h>
 #include <stm32_ll_bus.h>
-#include <zephyr/arch/cpu.h>
 #include <zephyr/arch/arm/aarch32/cortex_m/cmsis.h>
 
 /**
@@ -25,21 +24,8 @@
  *
  * @return 0
  */
-static int stm32m4_init(const struct device *arg)
+static int stm32m4_init(void)
 {
-	uint32_t key;
-
-	ARG_UNUSED(arg);
-
-	key = irq_lock();
-
-	/* Install default handler that simply resets the CPU
-	 * if configured in the kernel, NOP otherwise
-	 */
-	NMI_INIT();
-
-	irq_unlock(key);
-
 	/*HW semaphore Clock enable*/
 	LL_AHB3_GRP1_EnableClock(LL_AHB3_GRP1_PERIPH_HSEM);
 

@@ -14,6 +14,7 @@
 #include <stm32_ll_tim.h>
 #include <zephyr/drivers/pwm.h>
 #include <zephyr/drivers/pinctrl.h>
+#include <zephyr/drivers/reset.h>
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
 #include <zephyr/init.h>
@@ -22,6 +23,7 @@
 #include <zephyr/dt-bindings/pwm/stm32_pwm.h>
 
 #include <zephyr/logging/log.h>
+#include <zephyr/irq.h>
 
 LOG_MODULE_REGISTER(pwm_stm32, CONFIG_PWM_LOG_LEVEL);
 
@@ -52,6 +54,8 @@ struct pwm_stm32_capture_data {
 struct pwm_stm32_data {
 	/** Timer clock (Hz). */
 	uint32_t tim_clk;
+	/* Reset controller device configuration */
+	const struct reset_dt_spec reset;
 #ifdef CONFIG_PWM_CAPTURE
 	struct pwm_stm32_capture_data capture;
 #endif /* CONFIG_PWM_CAPTURE */
@@ -157,7 +161,7 @@ static int get_tim_clk(const struct stm32_pclken *pclken, uint32_t *tim_clk)
 
 	clk = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
 
-	r = clock_control_get_rate(clk, (clock_control_subsys_t *)pclken,
+	r = clock_control_get_rate(clk, (clock_control_subsys_t)pclken,
 				   &bus_clk);
 	if (r < 0) {
 		return r;
@@ -171,11 +175,20 @@ static int get_tim_clk(const struct stm32_pclken *pclken, uint32_t *tim_clk)
 	}
 #else
 	if (pclken->bus == STM32_CLOCK_BUS_APB1) {
+#if defined(CONFIG_SOC_SERIES_STM32MP1X)
+		apb_psc = (uint32_t)(READ_BIT(RCC->APB1DIVR, RCC_APB1DIVR_APB1DIV));
+#else
 		apb_psc = STM32_APB1_PRESCALER;
+#endif
 	}
-#if !defined(CONFIG_SOC_SERIES_STM32F0X) && !defined(CONFIG_SOC_SERIES_STM32G0X)
+#if !defined(CONFIG_SOC_SERIES_STM32C0X) && !defined(CONFIG_SOC_SERIES_STM32F0X) &&                \
+	!defined(CONFIG_SOC_SERIES_STM32G0X)
 	else {
+#if defined(CONFIG_SOC_SERIES_STM32MP1X)
+		apb_psc = (uint32_t)(READ_BIT(RCC->APB2DIVR, RCC_APB2DIVR_APB2DIV));
+#else
 		apb_psc = STM32_APB2_PRESCALER;
+#endif
 	}
 #endif
 #endif
@@ -240,6 +253,7 @@ static int pwm_stm32_set_cycles(const struct device *dev, uint32_t channel,
 
 	uint32_t ll_channel;
 	uint32_t current_ll_channel; /* complementary output if used */
+	uint32_t negative_ll_channel;
 
 	if (channel < 1u || channel > TIMER_MAX_CH) {
 		LOG_ERR("Invalid channel (%d)", channel);
@@ -267,16 +281,22 @@ static int pwm_stm32_set_cycles(const struct device *dev, uint32_t channel,
 
 	ll_channel = ch2ll[channel - 1u];
 
+	if (channel <= ARRAY_SIZE(ch2ll_n)) {
+		negative_ll_channel = ch2ll_n[channel - 1u];
+	} else {
+		negative_ll_channel = 0;
+	}
+
 	/* in LL_TIM_CC_DisableChannel and LL_TIM_CC_IsEnabledChannel,
 	 * the channel param could be the complementary one
 	 */
-	if ((flags & PWM_STM32_COMPLEMENTARY_MASK) == PWM_STM32_COMPLEMENTARY) {
-		if (channel > ARRAY_SIZE(ch2ll_n)) {
+	if ((flags & STM32_PWM_COMPLEMENTARY_MASK) == STM32_PWM_COMPLEMENTARY) {
+		if (!negative_ll_channel) {
 			/* setting a flag on a channel that has not this capability */
 			LOG_ERR("Channel %d has NO complementary output", channel);
 			return -EINVAL;
 		}
-		current_ll_channel = ch2ll_n[channel - 1u];
+		current_ll_channel = negative_ll_channel;
 	} else {
 		current_ll_channel = ll_channel;
 	}
@@ -309,13 +329,29 @@ static int pwm_stm32_set_cycles(const struct device *dev, uint32_t channel,
 		oc_init.OCMode = LL_TIM_OCMODE_PWM1;
 
 #if defined(LL_TIM_CHANNEL_CH1N)
-		/* the flags holds the PWM_STM32_COMPLEMENTARY information */
-		if ((flags & PWM_STM32_COMPLEMENTARY_MASK) == PWM_STM32_COMPLEMENTARY) {
+		/* the flags holds the STM32_PWM_COMPLEMENTARY information */
+		if ((flags & STM32_PWM_COMPLEMENTARY_MASK) == STM32_PWM_COMPLEMENTARY) {
 			oc_init.OCNState = LL_TIM_OCSTATE_ENABLE;
 			oc_init.OCNPolarity = get_polarity(flags);
+
+			/* inherit the polarity of the positive output */
+			oc_init.OCState = LL_TIM_CC_IsEnabledChannel(cfg->timer, ll_channel)
+						  ? LL_TIM_OCSTATE_ENABLE
+						  : LL_TIM_OCSTATE_DISABLE;
+			oc_init.OCPolarity = LL_TIM_OC_GetPolarity(cfg->timer, ll_channel);
 		} else {
 			oc_init.OCState = LL_TIM_OCSTATE_ENABLE;
 			oc_init.OCPolarity = get_polarity(flags);
+
+			/* inherit the polarity of the negative output */
+			if (negative_ll_channel) {
+				oc_init.OCNState =
+					LL_TIM_CC_IsEnabledChannel(cfg->timer, negative_ll_channel)
+						? LL_TIM_OCSTATE_ENABLE
+						: LL_TIM_OCSTATE_DISABLE;
+				oc_init.OCNPolarity =
+					LL_TIM_OC_GetPolarity(cfg->timer, negative_ll_channel);
+			}
 		}
 #else /* LL_TIM_CHANNEL_CH1N */
 
@@ -641,7 +677,7 @@ static int pwm_stm32_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	r = clock_control_on(clk, (clock_control_subsys_t *)&cfg->pclken);
+	r = clock_control_on(clk, (clock_control_subsys_t)&cfg->pclken);
 	if (r < 0) {
 		LOG_ERR("Could not initialize clock (%d)", r);
 		return r;
@@ -652,6 +688,9 @@ static int pwm_stm32_init(const struct device *dev)
 		LOG_ERR("Could not obtain timer clock (%d)", r);
 		return r;
 	}
+
+	/* Reset timer to default state using RCC */
+	(void)reset_line_toggle_dt(&data->reset);
 
 	/* configure pinmux */
 	r = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
@@ -689,14 +728,32 @@ static int pwm_stm32_init(const struct device *dev)
 	return 0;
 }
 
+#define PWM(index) DT_INST_PARENT(index)
+
 #ifdef CONFIG_PWM_CAPTURE
-#define IRQ_CONFIG_FUNC(index)                                                 \
-static void pwm_stm32_irq_config_func_##index(const struct device *dev)        \
-{                                                                              \
-	IRQ_CONNECT(DT_IRQN(DT_INST_PARENT(index)),                            \
-			DT_IRQ(DT_INST_PARENT(index), priority),               \
-			pwm_stm32_isr, DEVICE_DT_INST_GET(index), 0);          \
-	irq_enable(DT_IRQN(DT_INST_PARENT(index)));                            \
+#define IRQ_CONNECT_AND_ENABLE_BY_NAME(index, name)				\
+{										\
+	IRQ_CONNECT(DT_IRQ_BY_NAME(PWM(index), name, irq),			\
+			DT_IRQ_BY_NAME(PWM(index), name, priority),		\
+			pwm_stm32_isr, DEVICE_DT_INST_GET(index), 0);		\
+	irq_enable(DT_IRQ_BY_NAME(PWM(index), name, irq));			\
+}
+
+#define IRQ_CONNECT_AND_ENABLE_DEFAULT(index)					\
+{										\
+	IRQ_CONNECT(DT_IRQN(PWM(index)),					\
+			DT_IRQ(PWM(index), priority),				\
+			pwm_stm32_isr, DEVICE_DT_INST_GET(index), 0);		\
+	irq_enable(DT_IRQN(PWM(index)));					\
+}
+
+#define IRQ_CONFIG_FUNC(index)                                                  \
+static void pwm_stm32_irq_config_func_##index(const struct device *dev)		\
+{										\
+	COND_CODE_1(DT_IRQ_HAS_NAME(PWM(index), cc),				\
+		(IRQ_CONNECT_AND_ENABLE_BY_NAME(index, cc)),			\
+		(IRQ_CONNECT_AND_ENABLE_DEFAULT(index))				\
+	);									\
 }
 #define CAPTURE_INIT(index)                                                    \
 	.irq_config_func = pwm_stm32_irq_config_func_##index
@@ -707,20 +764,24 @@ static void pwm_stm32_irq_config_func_##index(const struct device *dev)        \
 
 #define DT_INST_CLK(index, inst)                                               \
 	{                                                                      \
-		.bus = DT_CLOCKS_CELL(DT_INST_PARENT(index), bus),             \
-		.enr = DT_CLOCKS_CELL(DT_INST_PARENT(index), bits)             \
+		.bus = DT_CLOCKS_CELL(PWM(index), bus),				\
+		.enr = DT_CLOCKS_CELL(PWM(index), bits)				\
 	}
 
+
 #define PWM_DEVICE_INIT(index)                                                 \
-	static struct pwm_stm32_data pwm_stm32_data_##index;                   \
+	static struct pwm_stm32_data pwm_stm32_data_##index = {		       \
+		.reset = RESET_DT_SPEC_GET(PWM(index)),			       \
+	};								       \
+									       \
 	IRQ_CONFIG_FUNC(index)						       \
 									       \
 	PINCTRL_DT_INST_DEFINE(index);					       \
 									       \
 	static const struct pwm_stm32_config pwm_stm32_config_##index = {      \
-		.timer = (TIM_TypeDef *)DT_REG_ADDR(DT_INST_PARENT(index)),    \
-		.prescaler = DT_PROP(DT_INST_PARENT(index), st_prescaler),     \
-		.countermode = DT_PROP(DT_INST_PARENT(index), st_countermode), \
+		.timer = (TIM_TypeDef *)DT_REG_ADDR(PWM(index)),	       \
+		.prescaler = DT_PROP(PWM(index), st_prescaler),		       \
+		.countermode = DT_PROP(PWM(index), st_countermode),	       \
 		.pclken = DT_INST_CLK(index, timer),                           \
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),		       \
 		CAPTURE_INIT(index)					       \
@@ -729,7 +790,7 @@ static void pwm_stm32_irq_config_func_##index(const struct device *dev)        \
 	DEVICE_DT_INST_DEFINE(index, &pwm_stm32_init, NULL,                    \
 			    &pwm_stm32_data_##index,                           \
 			    &pwm_stm32_config_##index, POST_KERNEL,            \
-			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,                \
+			    CONFIG_PWM_INIT_PRIORITY,                          \
 			    &pwm_stm32_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(PWM_DEVICE_INIT)

@@ -15,6 +15,7 @@
 #include <zephyr/device.h>
 #include <zephyr/net/buf.h>
 #include <zephyr/net/capture.h>
+#include <zephyr/sys/iterable_sections.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,7 +35,7 @@ enum net_l2_flags {
 	/** IP multicast supported */
 	NET_L2_MULTICAST			= BIT(0),
 
-	/** Do not joint solicited node multicast group */
+	/** Do not join solicited node multicast group */
 	NET_L2_MULTICAST_SKIP_JOIN_SOLICIT_NODE	= BIT(1),
 
 	/** Is promiscuous mode supported */
@@ -94,6 +95,11 @@ NET_L2_DECLARE_PUBLIC(VIRTUAL_L2);
 #define DUMMY_L2_CTX_TYPE	void*
 NET_L2_DECLARE_PUBLIC(DUMMY_L2);
 #endif /* CONFIG_NET_L2_DUMMY */
+
+#if defined(CONFIG_NET_OFFLOAD) || defined(CONFIG_NET_SOCKETS_OFFLOAD)
+#define OFFLOADED_NETDEV_L2 OFFLOADED_NETDEV
+NET_L2_DECLARE_PUBLIC(OFFLOADED_NETDEV_L2);
+#endif /* CONFIG_NET_OFFLOAD || CONFIG_NET_SOCKETS_OFFLOAD */
 
 #ifdef CONFIG_NET_L2_ETHERNET
 #define ETHERNET_L2		ETHERNET

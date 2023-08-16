@@ -58,6 +58,10 @@ void z_arm64_prep_c(void)
 
 	z_bss_zero();
 	z_data_copy();
+#ifdef CONFIG_ARM64_SAFE_EXCEPTION_STACK
+	/* After bss clean, _kernel.cpus is in bss section */
+	z_arm64_safe_exception_stack_init();
+#endif
 	z_arm64_mm_init(true);
 	z_arm64_interrupt_init();
 	z_cstart();
@@ -65,7 +69,7 @@ void z_arm64_prep_c(void)
 	CODE_UNREACHABLE;
 }
 
-#if CONFIG_MP_NUM_CPUS > 1
+#if CONFIG_MP_MAX_NUM_CPUS > 1
 extern FUNC_NORETURN void z_arm64_secondary_start(void);
 void z_arm64_secondary_prep_c(void)
 {

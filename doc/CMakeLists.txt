@@ -3,6 +3,7 @@
 cmake_minimum_required(VERSION 3.20.0)
 project(Zephyr-Kernel-Doc LANGUAGES)
 
+set(MIN_WEST_VERSION 1.0.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE} .. COMPONENTS doc)
 
 file(TO_CMAKE_PATH "${ZEPHYR_BASE}" ZEPHYR_BASE)
@@ -11,13 +12,15 @@ message(STATUS "Zephyr base: ${ZEPHYR_BASE}")
 #-------------------------------------------------------------------------------
 # Options
 
-set(SPHINXOPTS "-j auto" CACHE STRING "Default Sphinx Options")
+set(SPHINXOPTS "-j auto -W --keep-going -T" CACHE STRING "Default Sphinx Options")
+set(SPHINXOPTS_EXTRA "" CACHE STRING "Extra Sphinx Options (added to defaults)")
 set(LATEXMKOPTS "-halt-on-error -no-shell-escape" CACHE STRING "Default latexmk options")
 set(DT_TURBO_MODE OFF CACHE BOOL "Enable DT turbo mode")
 set(DOC_TAG "development" CACHE STRING "Documentation tag")
 set(DTS_ROOTS "${ZEPHYR_BASE}" CACHE STRING "DT bindings root folders")
 
 separate_arguments(SPHINXOPTS)
+separate_arguments(SPHINXOPTS_EXTRA)
 separate_arguments(LATEXMKOPTS)
 
 #-------------------------------------------------------------------------------
@@ -49,6 +52,7 @@ set(DOCS_DOCTREE_DIR ${CMAKE_CURRENT_BINARY_DIR}/doctrees)
 set(DOCS_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(DOCS_SRC_DIR ${CMAKE_CURRENT_BINARY_DIR}/src)
 set(DOCS_HTML_DIR ${CMAKE_CURRENT_BINARY_DIR}/html)
+set(DOCS_LINKCHECK_DIR ${CMAKE_CURRENT_BINARY_DIR}/linkcheck)
 set(DOCS_LATEX_DIR ${CMAKE_CURRENT_BINARY_DIR}/latex)
 
 if(WIN32)
@@ -143,6 +147,7 @@ add_doc_target(
     -w ${DOCS_BUILD_DIR}/html.log
     -t ${DOC_TAG}
     ${SPHINXOPTS}
+    ${SPHINXOPTS_EXTRA}
     ${DOCS_SRC_DIR}
     ${DOCS_HTML_DIR}
   USES_TERMINAL
@@ -171,6 +176,7 @@ add_doc_target(
     -t ${DOC_TAG}
     -t svgconvert
     ${SPHINXOPTS}
+    ${SPHINXOPTS_EXTRA}
     ${DOCS_SRC_DIR}
     ${DOCS_LATEX_DIR}
   USES_TERMINAL
@@ -207,6 +213,34 @@ if(LATEX_PDFLATEX_FOUND AND LATEXMK)
 
   add_dependencies(pdf latex)
 endif()
+
+#-------------------------------------------------------------------------------
+# linkcheck
+
+add_doc_target(
+  linkcheck
+  COMMAND ${CMAKE_COMMAND} -E env ${SPHINX_ENV}
+  ${SPHINXBUILD}
+    -b linkcheck
+    -c ${DOCS_CFG_DIR}
+    -d ${DOCS_DOCTREE_DIR}
+    -w ${DOCS_BUILD_DIR}/linkcheck.log
+    -t ${DOC_TAG}
+    ${SPHINXOPTS}
+    ${SPHINXOPTS_EXTRA}
+    ${DOCS_SRC_DIR}
+    ${DOCS_LINKCHECK_DIR}
+  USES_TERMINAL
+  COMMENT "Running Sphinx link check..."
+)
+
+set_target_properties(
+  linkcheck linkcheck-nodeps
+  PROPERTIES
+    ADDITIONAL_CLEAN_FILES "${DOCS_SRC_DIR};${DOCS_LINKCHECK_DIR};${DOCS_DOCTREE_DIR}"
+)
+
+add_dependencies(linkcheck devicetree)
 
 #-------------------------------------------------------------------------------
 # others

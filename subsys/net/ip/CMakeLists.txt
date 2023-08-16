@@ -1,5 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
+zephyr_syscall_header(
+  ${ZEPHYR_BASE}/include/zephyr/net/net_if.h
+  ${ZEPHYR_BASE}/include/zephyr/net/net_ip.h
+)
+
 zephyr_library()
 zephyr_library_include_directories(.)
 zephyr_library_compile_definitions_ifdef(
@@ -33,6 +38,7 @@ zephyr_library_sources_ifdef(CONFIG_NET_IPV6         icmpv6.c nbr.c
                                                      ipv6.c ipv6_nbr.c)
 zephyr_library_sources_ifdef(CONFIG_NET_IPV6_MLD     ipv6_mld.c)
 zephyr_library_sources_ifdef(CONFIG_NET_IPV6_FRAGMENT     ipv6_fragment.c)
+zephyr_library_sources_ifdef(CONFIG_NET_IPV4_FRAGMENT     ipv4_fragment.c)
 zephyr_library_sources_ifdef(CONFIG_NET_ROUTE        route.c)
 zephyr_library_sources_ifdef(CONFIG_NET_STATISTICS   net_stats.c)
 zephyr_library_sources_ifdef(CONFIG_NET_TCP          tcp.c)

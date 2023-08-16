@@ -53,7 +53,7 @@ static void shtcx_temperature_from_raw(uint16_t raw, struct sensor_value *val)
 	tmp = (int32_t)raw * 175U - (45 << 16);
 	val->val1 = tmp / 0x10000;
 	/* x * 1.000.000 / 65.536 == x * 15625 / 2^10 */
-	val->val2 = ((tmp % 0x10000) * 15625U) / 1024;
+	val->val2 = ((tmp % 0x10000) * 15625) / 1024;
 }
 
 /* val = 100 * sample / (2^16) */
@@ -249,7 +249,7 @@ static int shtcx_init(const struct device *dev)
 	static struct shtcx_data shtcx_data_##inst;			\
 	static struct shtcx_config shtcx_config_##inst =		\
 		SHTCX_CONFIG(inst);					\
-	DEVICE_DT_INST_DEFINE(inst,					\
+	SENSOR_DEVICE_DT_INST_DEFINE(inst,				\
 			      shtcx_init,				\
 			      NULL,					\
 			      &shtcx_data_##inst,			\

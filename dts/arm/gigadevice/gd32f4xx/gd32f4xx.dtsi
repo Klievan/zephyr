@@ -5,6 +5,7 @@
  */
 
 #include <arm/armv7-m.dtsi>
+#include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/i2c/i2c.h>
 #include <zephyr/dt-bindings/pwm/pwm.h>
@@ -62,7 +63,9 @@
 			#size-cells = <1>;
 
 			flash0: flash@8000000 {
-				compatible = "soc-nv-flash";
+				compatible = "gd,gd32-nv-flash-v3", "soc-nv-flash";
+				write-block-size = <2>;
+				max-erase-time-ms = <8000>;
 			};
 		};
 
@@ -270,6 +273,21 @@
 			interrupt-names = "line0", "line1", "line2", "line3",
 					  "line4", "line5-9", "line10-15";
 			status = "okay";
+		};
+
+		fwdgt: watchdog@40003000 {
+			compatible = "gd,gd32-fwdgt";
+			reg = <0x40003000 0x400>;
+			status = "disabled";
+		};
+
+		wwdgt: watchdog@40002c00 {
+			compatible = "gd,gd32-wwdgt";
+			reg = <0x40002C00 0x400>;
+			clocks = <&cctl GD32_CLOCK_WWDGT>;
+			resets = <&rctl GD32_RESET_WWDGT>;
+			interrupts = <0 0>;
+			status = "disabled";
 		};
 
 		pinctrl: pin-controller@40020000 {
@@ -601,26 +619,28 @@
 		};
 
 		dma0: dma@40026000 {
-			compatible = "gd,gd32-dma";
+			compatible = "gd,gd32-dma-v1";
 			reg = <0x40026000 0x400>;
 			interrupts = <11 0>, <12 0>, <13 0>, <14 0>,
 				     <15 0>, <16 0>, <17 0>, <47 0>;
 			clocks = <&cctl GD32_CLOCK_DMA0>;
 			resets = <&rctl GD32_RESET_DMA0>;
 			dma-channels = <8>;
-			#dma-cells = <1>;
+			gd,mem2mem;
+			#dma-cells = <4>;
 			status = "disabled";
 		};
 
 		dma1: dma@40026400 {
-			compatible = "gd,gd32-dma";
+			compatible = "gd,gd32-dma-v1";
 			reg = <0x40026400 0x400>;
 			interrupts = <56 0>, <57 0>, <58 0>, <59 0>,
 				     <60 0>, <68 0>, <69 0>, <70 0>;
 			clocks = <&cctl GD32_CLOCK_DMA1>;
 			resets = <&rctl GD32_RESET_DMA1>;
 			dma-channels = <8>;
-			#dma-cells = <1>;
+			gd,mem2mem;
+			#dma-cells = <4>;
 			status = "disabled";
 		};
 	};

@@ -25,8 +25,13 @@ extern "C" {
 /** Number of used VRING buffers. */
 #define VRING_COUNT	(2)
 
-/** VRING alignment. */
-#define VRING_ALIGNMENT	CONFIG_IPC_SERVICE_STATIC_VRINGS_ALIGNMENT
+/**
+ * Memory alignment.
+ *
+ * This should take into account the cache line if the cache is enabled, otherwise
+ * it should be naturally aligned to the machine word size.
+ */
+#define MEM_ALIGNMENT	CONFIG_IPC_SERVICE_STATIC_VRINGS_MEM_ALIGNMENT
 
 /**
  * @typedef ipc_notify_cb
@@ -100,6 +105,18 @@ struct ipc_static_vrings {
  *  @retval Other errno codes depending on the OpenAMP implementation.
  */
 int ipc_static_vrings_init(struct ipc_static_vrings *vr, unsigned int role);
+
+/** @brief Deinitialise the static VRINGs.
+ *
+ *  Deinitialise VRINGs and Virtqueues of an OpenAMP / RPMsg instance.
+ *
+ *  @param vr Pointer to the VRINGs instance struct.
+ *  @param role Host / Remote role.
+ *
+ *  @retval 0 If successful.
+ *  @retval Other errno codes depending on the OpenAMP implementation.
+ */
+int ipc_static_vrings_deinit(struct ipc_static_vrings *vr, unsigned int role);
 
 /**
  * @}

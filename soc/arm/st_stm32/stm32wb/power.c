@@ -56,7 +56,7 @@ static void lpm_hsem_lock(void)
 }
 
 /* Invoke Low Power/System Off specific Tasks */
-__weak void pm_state_set(enum pm_state state, uint8_t substate_id)
+void pm_state_set(enum pm_state state, uint8_t substate_id)
 {
 	if (state == PM_STATE_SOFT_OFF) {
 		lpm_hsem_lock();
@@ -108,7 +108,7 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 }
 
 /* Handle SOC specific activity after Low Power Mode Exit */
-__weak void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
+void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
 {
 	/* Implementation of STM32 AN5289 algorithm to enter/exit lowpower */
 	/* Release ENTRY_STOP_MODE semaphore */
@@ -148,9 +148,8 @@ __weak void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
 }
 
 /* Initialize STM32 Power */
-static int stm32_power_init(const struct device *dev)
+static int stm32_power_init(void)
 {
-	ARG_UNUSED(dev);
 
 #ifdef CONFIG_DEBUG
 	/* Enable the Debug Module during STOP mode */
